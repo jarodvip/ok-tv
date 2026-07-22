@@ -7,9 +7,22 @@ use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 
+#[allow(static_mut_refs)]
 static mut JAVA_VM: Option<JavaVM> = None;
+#[allow(static_mut_refs)]
 static mut CONFIG: Option<DnsConfig> = None;
+#[allow(static_mut_refs)]
 static mut CACHE: Option<HostCache> = None;
+
+#[allow(static_mut_refs)]
+fn config_ref() -> Option<&'static DnsConfig> {
+    unsafe { CONFIG.as_ref() }
+}
+
+#[allow(static_mut_refs)]
+fn cache_mut() -> Option<&'static mut HostCache> {
+    unsafe { CACHE.as_mut() }
+}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct DnsConfig {
@@ -93,7 +106,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
         Err(err) => return throw_and_empty_string(&mut env, DnsError::InvalidConfig(err.to_string())),
     };
 
-    match unsafe { CACHE.as_mut() } {
+    match cache_mut() {
         Some(cache) => match cache.get(&host_text) {
             Some(ip) => to_json_string(&mut env, &ResolveResult::cached(ip)).unwrap_or_else(|err| throw_and_empty_string(&mut env, err)),
             None => {
@@ -107,12 +120,12 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
 }
 
 fn resolve_host(host: &str) -> ResolveResult {
-    if let Some(rule) = unsafe { CONFIG.as_ref() }.and_then(|config| match_host_rule(config, host)) {
-        return ResolveResult { ip: rule.target, source: "hosts".into(), ttl_secs: unsafe { CONFIG.as_ref() }.map(|c| c.ttl_secs).unwrap_or(0) };
+    if let Some(rule) = config_ref().and_then(|config| match_host_rule(config, host)) {
+        return ResolveResult { ip: rule.target, source: "hosts".into(), ttl_secs: config_ref().map(|c| c.ttl_secs).unwrap_or(0) };
     }
 
     match resolve_with_doh(host) {
-        Ok(ip) => ResolveResult { ip, source: "doh".into(), ttl_secs: unsafe { CONFIG.as_ref() }.map(|c| c.ttl_secs).unwrap_or(0) },
+        Ok(ip) => ResolveResult { ip, source: "doh".into(), ttl_secs: config_ref().map(|c| c.ttl_secs).unwrap_or(0) },
         Err(_) => ResolveResult { ip: host.into(), source: "passthrough".into(), ttl_secs: 0 },
     }
 }
@@ -174,7 +187,7 @@ fn resolve_with_doh(host: &str) -> Result<String, DnsError> {
 }
 
 fn doh_urls() -> Option<Vec<Url>> {
-    let config = unsafe { CONFIG.as_ref() }?;
+    let config = config_ref()?;
     let urls = config.doh.iter().filter(|item| !item.url.is_empty()).filter_map(|item| Url::parse(&item.url).ok()).collect::<Vec<_>>();
     if urls.is_empty() { None } else { Some(urls) }
 }
@@ -316,8 +329,10 @@ mod tests {
     }
 
     fn resolve_host_with_config(config: &DnsConfig, host: &str) -> ResolveResult {
-        unsafe { CONFIG = Some(config.clone()); }
-        unsafe { CACHE = Some(HostCache::new(config.ttl_secs)); }
+        unsafe {
+            CONFIG = Some(config.clone());
+            CACHE = Some(HostCache::new(config.ttl_secs));
+        }
         resolve_host(host)
     }
 }
