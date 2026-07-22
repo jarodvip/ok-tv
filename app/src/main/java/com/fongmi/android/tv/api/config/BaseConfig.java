@@ -39,6 +39,16 @@ abstract class BaseConfig {
         }
     }
 
+    protected void syncRustDns() {
+        try {
+            String configJson = com.fongmi.android.tv.net.RustDnsCallback.buildConfigJson();
+            if (TextUtils.isEmpty(configJson)) return;
+            com.fongmi.android.tv.net.RustDns.reset();
+            com.fongmi.android.tv.net.RustDns.init(configJson);
+        } catch (Throwable e) {
+            Log.w(TAG, "sync rust dns failed", e);
+        }
+    }
 
     public static final int VOD = 0;
     public static final int LIVE = 1;

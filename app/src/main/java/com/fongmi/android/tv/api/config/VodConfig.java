@@ -216,6 +216,12 @@ public class VodConfig extends BaseConfig {
 
     private void setDoh(List<Doh> doh) {
         this.doh = doh;
+        syncRustDns();
+    }
+
+    private void setHosts(List<String> hosts) {
+        this.hosts = hosts;
+        syncRustDns();
     }
 
     public List<Rule> getRules() {

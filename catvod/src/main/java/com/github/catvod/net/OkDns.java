@@ -44,6 +44,8 @@ public class OkDns implements Dns {
         String target = map.get(hostname);
         if (target != null) return target;
         for (Map.Entry<String, String> entry : map.entrySet()) if (Util.containOrMatch(hostname, entry.getKey())) return entry.getValue();
+        String rust = com.fongmi.android.tv.net.RustDns.resolveHost(hostname);
+        if (!TextUtils.isEmpty(rust) && !hostname.equals(rust)) return rust;
         return hostname;
     }
 
