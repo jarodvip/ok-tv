@@ -1,14 +1,17 @@
 package com.github.catvod.net.interceptor;
 
-import androidx.annotation.NonNull;
+import android.text.TextUtils;
+import android.util.Log;
 
-import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
+import com.fongmi.android.tv.net.RustNet;
 
 import okhttp3.HttpUrl;
 import okhttp3.Interceptor;
 import okhttp3.Request;
 import okhttp3.Response;
+
+import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RequestInterceptor implements Interceptor {
 
@@ -22,20 +25,40 @@ public class RequestInterceptor implements Interceptor {
         authMap.clear();
     }
 
-    @NonNull
     @Override
-    public Response intercept(@NonNull Chain chain) throws IOException {
+    public Response intercept(Chain chain) throws IOException {
         Request request = chain.request();
         Request.Builder builder = request.newBuilder();
         HttpUrl url = request.url();
         checkAuth(url, builder);
+        injectHeaders(url, builder);
         return chain.proceed(builder.build());
     }
 
     private void checkAuth(HttpUrl url, Request.Builder builder) {
-        String host = url.host();
         String auth = url.queryParameter("auth");
-        if (auth != null) authMap.put(host, auth);
-        else if (authMap.containsKey(host)) builder.url(url.newBuilder().addQueryParameter("auth", authMap.get(host)).build());
+        if (auth != null) {
+            authMap.put(url.host(), auth);
+        } else if (authMap.containsKey(url.host())) {
+            builder.url(url.newBuilder().addQueryParameter("auth", authMap.get(url.host())).build());
+        }
+    }
+
+    private void injectHeaders(HttpUrl url, Request.Builder builder) {
+        try {
+            String host = url.host();
+            if (TextUtils.isEmpty(host)) return;
+            String headersJson = RustNet.injectHeaders(host, "{}");
+            if (TextUtils.isEmpty(headersJson)) return;
+            org.json.JSONObject obj = new org.json.JSONObject(headersJson);
+            for (String key : obj.keySet()) {
+                String value = obj.optString(key);
+                if (!TextUtils.isEmpty(key) && !TextUtils.isEmpty(value)) {
+                    builder.header(key, value);
+                }
+            }
+        } catch (Exception e) {
+            Log.w("RequestInterceptor", "inject rust headers failed", e);
+        }
     }
 }

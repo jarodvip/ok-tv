@@ -1,0 +1,14 @@
+[package]
+name = "tv-net"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = { version = "0.21", default-features = false, features = ["invocation"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+wildmatch = "2.1"

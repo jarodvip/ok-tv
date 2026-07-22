@@ -26,6 +26,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 abstract class BaseConfig {
 
+    private static final String TAG = "BaseConfig";
+
+    protected void syncRustNetRules() {
+        try {
+            String rulesJson = com.fongmi.android.tv.net.RustNetCallback.buildRulesJson();
+            if (TextUtils.isEmpty(rulesJson)) return;
+            com.fongmi.android.tv.net.RustNet.reset();
+            com.fongmi.android.tv.net.RustNet.init(rulesJson);
+        } catch (Throwable e) {
+            Log.w(TAG, "sync rust net rules failed", e);
+        }
+    }
+
+
     public static final int VOD = 0;
     public static final int LIVE = 1;
     public static final int WALL = 2;

@@ -225,6 +225,7 @@ public class VodConfig extends BaseConfig {
     private void setRules(List<Rule> rules) {
         this.rules = rules;
         RuleConfig.get().invalidate();
+        syncRustNetRules();
     }
 
     public List<Parse> getParses(int type) {
@@ -252,6 +253,7 @@ public class VodConfig extends BaseConfig {
     private void setAds(List<String> ads) {
         this.ads = ads;
         RuleConfig.get().invalidate();
+        syncRustNetRules();
     }
 
     public Parse getParse() {

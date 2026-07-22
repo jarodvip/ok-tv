@@ -245,6 +245,7 @@ public class LiveConfig extends BaseConfig {
     private void setRules(List<Rule> rules) {
         this.rules = rules;
         RuleConfig.get().invalidate();
+        syncRustNetRules();
     }
 
     public List<String> getAds() {
@@ -254,6 +255,7 @@ public class LiveConfig extends BaseConfig {
     private void setAds(List<String> ads) {
         this.ads = ads;
         RuleConfig.get().invalidate();
+        syncRustNetRules();
     }
 
     public Live getHome() {
