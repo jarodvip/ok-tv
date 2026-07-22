@@ -1,8 +1,9 @@
 use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jstring};
+use jni::sys::jstring;
 use jni::{JNIEnv, JavaVM};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 
@@ -28,6 +29,19 @@ pub struct DohRule {
 pub struct HostRule {
     pub host: String,
     pub target: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolveResult {
+    pub ip: String,
+    pub source: String,
+    pub ttl_secs: u64,
+}
+
+impl ResolveResult {
+    pub fn cached(ip: String) -> Self {
+        Self { ip, source: "cache".into(), ttl_secs: 0 }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -92,19 +106,6 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolveResult {
-    pub ip: String,
-    pub source: String,
-    pub ttl_secs: u64,
-}
-
-impl ResolveResult {
-    pub fn cached(ip: String) -> Self {
-        Self { ip, source: "cache".into(), ttl_secs: 0 }
-    }
-}
-
 fn resolve_host(host: &str) -> ResolveResult {
     if let Some(rule) = unsafe { CONFIG.as_ref() }.and_then(|config| match_host_rule(config, host)) {
         return ResolveResult { ip: rule.target, source: "hosts".into(), ttl_secs: unsafe { CONFIG.as_ref() }.map(|c| c.ttl_secs).unwrap_or(0) };
@@ -116,16 +117,9 @@ fn resolve_host(host: &str) -> ResolveResult {
     }
 }
 
-fn resolve_host_with_config(config: &DnsConfig, host: &str) -> ResolveResult {
-    unsafe { CONFIG = Some(config.clone()); }
-    resolve_host(host)
-}
-
 fn match_host_rule(config: &DnsConfig, host: &str) -> Option<HostRule> {
     for rule in &config.hosts {
-        let matched = host_matches(&rule.host, host);
-        eprintln!("match_host_rule: pattern='{}', host='{}', matched={}", rule.host, host, matched);
-        if matched {
+        if host_matches(&rule.host, host) {
             return Some(rule.clone());
         }
     }
@@ -133,31 +127,56 @@ fn match_host_rule(config: &DnsConfig, host: &str) -> Option<HostRule> {
 }
 
 fn resolve_with_doh(host: &str) -> Result<String, DnsError> {
-    let doh_url = first_doh_url()?;
-    let request_url = doh_url.join(&format!("?name={}&type=A", urlencoding::encode(host))).map_err(|err| DnsError::DohRequest(err.to_string()))?;
-    let client = match reqwest::blocking::Client::builder().user_agent("ok-tv-dns/0.1").build() {
-        Ok(client) => client,
-        Err(err) => return Err(DnsError::DohRequest(err.to_string())),
+    let urls = match doh_urls() {
+        Some(urls) => urls,
+        None => return Err(DnsError::DohRequest("no doh".into())),
     };
-    let response = match client.get(request_url).header("Accept", "application/dns-json").send() {
-        Ok(resp) => resp,
-        Err(err) => return Err(DnsError::DohRequest(err.to_string())),
-    };
-    if !response.status().is_success() {
-        return Err(DnsError::DohRequest(format!("status={}", response.status())));
+
+    let mut last_err = None;
+    for doh_url in urls {
+        let request_url = match doh_url.join(&format!("?name={}&type=A", urlencoding::encode(host))) {
+            Ok(url) => url,
+            Err(err) => {
+                last_err = Some(err.to_string());
+                continue;
+            }
+        };
+        let client = match reqwest::blocking::Client::builder().user_agent("ok-tv-dns/0.1").timeout(Duration::from_secs(3)).build() {
+            Ok(client) => client,
+            Err(err) => {
+                last_err = Some(err.to_string());
+                continue;
+            }
+        };
+        let response = match client.get(request_url).header("Accept", "application/dns-json").send() {
+            Ok(resp) => resp,
+            Err(err) => {
+                last_err = Some(err.to_string());
+                continue;
+            }
+        };
+        if !response.status().is_success() {
+            last_err = Some(format!("doh status={}", response.status()));
+            continue;
+        }
+        match response.json::<DohResponse>() {
+            Ok(doh_response) => {
+                if let Some(ip) = doh_response.first_ip().map(|ip| ip.to_string()) {
+                    return Ok(ip);
+                }
+                last_err = Some("doh response had no answer".to_string());
+            }
+            Err(err) => last_err = Some(err.to_string()),
+        }
     }
-    let doh_response: DohResponse = match response.json() {
-        Ok(data) => data,
-        Err(err) => return Err(DnsError::DohRequest(err.to_string())),
-    };
-    doh_response.first_ip().map(|ip| ip.to_string()).ok_or_else(|| DnsError::DohRequest("no answer".into()))
+
+    Err(DnsError::DohRequest(last_err.unwrap_or_else(|| "no answer".into())))
 }
 
-fn first_doh_url() -> Result<Url, DnsError> {
-    let doh = unsafe { CONFIG.as_ref() }
-        .and_then(|config| config.doh.iter().find(|item| !item.url.is_empty()).cloned())
-        .ok_or_else(|| DnsError::DohRequest("no doh".into()))?;
-    Url::parse(&doh.url).map_err(|err| DnsError::DohRequest(err.to_string()))
+fn doh_urls() -> Option<Vec<Url>> {
+    let config = unsafe { CONFIG.as_ref() }?;
+    let urls = config.doh.iter().filter(|item| !item.url.is_empty()).filter_map(|item| Url::parse(&item.url).ok()).collect::<Vec<_>>();
+    if urls.is_empty() { None } else { Some(urls) }
 }
 
 fn host_matches(pattern: &str, host: &str) -> bool {
@@ -225,7 +244,7 @@ impl HostCache {
     fn get(&mut self, host: &str) -> Option<String> {
         let now = now_secs();
         self.inner.retain(|_, (_, expiry)| *expiry > now);
-        self.inner.get(host).map(|(ip, expiry)| if *expiry > now { Some(ip.clone()) } else { None })?
+        self.inner.get(host).and_then(|(ip, expiry)| if *expiry > now { Some(ip.clone()) } else { None })
     }
 
     fn insert(&mut self, host: &str, ip: String) {
@@ -237,7 +256,7 @@ impl HostCache {
 }
 
 fn now_secs() -> u64 {
-    unsafe { std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() }
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
 }
 
 mod urlencoding {
@@ -300,15 +319,5 @@ mod tests {
         unsafe { CONFIG = Some(config.clone()); }
         unsafe { CACHE = Some(HostCache::new(config.ttl_secs)); }
         resolve_host(host)
-    }
-}
-
-#[cfg(test)]
-mod debug_tests {
-    #[test]
-    fn string_clone_ok() {
-        let s = String::from("1.1.1.1");
-        let c = s.clone();
-        assert_eq!(c, "1.1.1.1");
     }
 }
