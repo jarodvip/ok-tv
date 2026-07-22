@@ -6,8 +6,15 @@ use serde_json;
 use std::collections::HashMap;
 use thiserror::Error;
 
+#[allow(static_mut_refs)]
 static mut JAVA_VM: Option<JavaVM> = None;
+#[allow(static_mut_refs)]
 static mut RULES: Option<NetRules> = None;
+
+#[allow(static_mut_refs)]
+fn rules_ref() -> Option<&'static NetRules> {
+    unsafe { RULES.as_ref() }
+}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct NetRules {
@@ -75,7 +82,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeResolveProxy
         Err(err) => return throw_and_empty_string(&mut env, NetError::InvalidRule(err.to_string())),
     };
 
-    let rule = match unsafe { RULES.as_ref() } {
+    let rule = match rules_ref() {
         Some(rules) => resolve_proxy(rules, &host_text),
         None => None,
     };
@@ -97,7 +104,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeShouldBlock(
         Err(_) => return jni::sys::JNI_FALSE,
     };
 
-    match unsafe { RULES.as_ref() } {
+    match rules_ref() {
         Some(rules) => should_block(rules, &url_text),
         None => jni::sys::JNI_FALSE,
     }
@@ -125,7 +132,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInjectHeader
         Err(err) => return throw_and_empty_string(&mut env, NetError::InvalidRule(err.to_string())),
     };
 
-    match unsafe { RULES.as_ref() } {
+    match rules_ref() {
         Some(rules) => inject_headers(rules, &host_text, &mut headers),
         None => {}
     }
