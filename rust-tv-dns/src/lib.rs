@@ -73,12 +73,16 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeInit(
         Ok(config) => {
             let ttl_secs = config.ttl_secs;
             unsafe {
-                CONFIG = Some(config);
+                CONFIG = Some(config.clone());
                 CACHE = Some(HostCache::new(ttl_secs));
             }
+            android_log(&mut env, "d", "RustDns", format!("inited hosts={} doh={} ttl={}", config.hosts.len(), config.doh.len(), ttl_secs));
             empty_string(&mut env)
         }
-        Err(err) => throw_and_empty_string(&mut env, DnsError::InvalidConfig(err.to_string())),
+        Err(err) => {
+            android_log(&mut env, "e", "RustDns", format!("init failed: {}", err));
+            throw_and_empty_string(&mut env, DnsError::InvalidConfig(err.to_string()))
+        }
     }
 }
 
@@ -95,10 +99,14 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
 
     match unsafe { CACHE.as_mut() } {
         Some(cache) => match cache.get(&host_text) {
-            Some(ip) => to_json_string(&mut env, &ResolveResult::cached(ip)).unwrap_or_else(|err| throw_and_empty_string(&mut env, err)),
+            Some(ip) => {
+                android_log(&mut env, "d", "RustDns", format!("host={} source=cache ip={}", host_text, ip));
+                to_json_string(&mut env, &ResolveResult::cached(ip)).unwrap_or_else(|err| throw_and_empty_string(&mut env, err))
+            }
             None => {
-                let result = resolve_host(&host_text);
+                let result = resolve_host(Some(&mut env), &host_text);
                 cache.insert(&host_text, result.ip.clone());
+                android_log(&mut env, "d", "RustDns", format!("host={} source={} ip={}", host_text, result.source, result.ip));
                 to_json_string(&mut env, &result).unwrap_or_else(|err| throw_and_empty_string(&mut env, err))
             }
         },
@@ -106,12 +114,12 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
     }
 }
 
-fn resolve_host(host: &str) -> ResolveResult {
+fn resolve_host(env: Option<&mut JNIEnv>, host: &str) -> ResolveResult {
     if let Some(rule) = unsafe { CONFIG.as_ref() }.and_then(|config| match_host_rule(config, host)) {
         return ResolveResult { ip: rule.target, source: "hosts".into(), ttl_secs: unsafe { CONFIG.as_ref() }.map(|c| c.ttl_secs).unwrap_or(0) };
     }
 
-    match resolve_with_doh(host) {
+    match resolve_with_doh(env, host) {
         Ok(ip) => ResolveResult { ip, source: "doh".into(), ttl_secs: unsafe { CONFIG.as_ref() }.map(|c| c.ttl_secs).unwrap_or(0) },
         Err(_) => ResolveResult { ip: host.into(), source: "passthrough".into(), ttl_secs: 0 },
     }
@@ -126,18 +134,22 @@ fn match_host_rule(config: &DnsConfig, host: &str) -> Option<HostRule> {
     None
 }
 
-fn resolve_with_doh(host: &str) -> Result<String, DnsError> {
+fn resolve_with_doh(mut env: Option<&mut JNIEnv>, host: &str) -> Result<String, DnsError> {
     let urls = match doh_urls() {
         Some(urls) => urls,
         None => return Err(DnsError::DohRequest("no doh".into())),
     };
 
+    if let Some(env) = env.as_mut() {
+        android_log(*env, "d", "RustDns", format!("try host={} urls={}", host, urls.len()));
+    }
     let mut last_err = None;
-    for doh_url in urls {
+    for (idx, doh_url) in urls.iter().enumerate() {
         let request_url = match doh_url.join(&format!("?name={}&type=A", urlencoding::encode(host))) {
             Ok(url) => url,
             Err(err) => {
                 last_err = Some(err.to_string());
+                if let Some(env) = env.as_mut() { android_log(*env, "e", "RustDns", format!("host={} url={} build_failed: {}", host, idx + 1, last_err.as_deref().unwrap_or("unknown"))); }
                 continue;
             }
         };
@@ -145,6 +157,7 @@ fn resolve_with_doh(host: &str) -> Result<String, DnsError> {
             Ok(client) => client,
             Err(err) => {
                 last_err = Some(err.to_string());
+                if let Some(env) = env.as_mut() { android_log(*env, "e", "RustDns", format!("host={} url={} build_failed: {}", host, idx + 1, last_err.as_deref().unwrap_or("unknown"))); }
                 continue;
             }
         };
@@ -152,21 +165,28 @@ fn resolve_with_doh(host: &str) -> Result<String, DnsError> {
             Ok(resp) => resp,
             Err(err) => {
                 last_err = Some(err.to_string());
+                if let Some(env) = env.as_mut() { android_log(*env, "e", "RustDns", format!("host={} url={} request_failed: {}", host, idx + 1, last_err.as_deref().unwrap_or("unknown"))); }
                 continue;
             }
         };
         if !response.status().is_success() {
             last_err = Some(format!("doh status={}", response.status()));
+            if let Some(env) = env.as_mut() { android_log(*env, "e", "RustDns", format!("host={} url={} bad_status: {}", host, idx + 1, last_err.as_deref().unwrap_or("unknown"))); }
             continue;
         }
         match response.json::<DohResponse>() {
             Ok(doh_response) => {
                 if let Some(ip) = doh_response.first_ip().map(|ip| ip.to_string()) {
+                    if let Some(env) = env.as_mut() { android_log(*env, "d", "RustDns", format!("host={} url={} resolved={}", host, idx + 1, ip)); }
                     return Ok(ip);
                 }
                 last_err = Some("doh response had no answer".to_string());
+                if let Some(env) = env.as_mut() { android_log(*env, "e", "RustDns", format!("host={} url={} no_answer", host, idx + 1)); }
             }
-            Err(err) => last_err = Some(err.to_string()),
+            Err(err) => {
+                last_err = Some(err.to_string());
+                if let Some(env) = env.as_mut() { android_log(*env, "e", "RustDns", format!("host={} url={} parse_failed: {}", host, idx + 1, last_err.as_deref().unwrap_or("unknown"))); }
+            }
         }
     }
 
@@ -211,6 +231,31 @@ fn throw_and_empty_string(env: &mut JNIEnv, err: impl std::fmt::Display) -> jstr
 fn to_json_string<T: Serialize>(env: &mut JNIEnv, value: &T) -> Result<jstring, DnsError> {
     let text = serde_json::to_string(value).map_err(|err| DnsError::InvalidConfig(err.to_string()))?;
     Ok(env.new_string(text).map_err(|err| DnsError::InvalidConfig(err.to_string()))?.into_raw())
+}
+
+fn android_log(env: &mut JNIEnv, level: &str, tag: &str, msg: impl Into<String>) {
+    let tag = match env.new_string(tag) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    let msg = match env.new_string(msg.into()) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    let _ = env.call_static_method(
+        "android/util/Log",
+        level,
+        "(Ljava/lang/String;Ljava/lang/String;)I",
+        &[(&tag).into(), (&msg).into()],
+    );
+}
+
+fn logd(env: &mut JNIEnv, tag: &str, msg: impl Into<String>) {
+    android_log(env, "d", tag, msg);
+}
+
+fn loge(env: &mut JNIEnv, tag: &str, msg: impl Into<String>) {
+    android_log(env, "e", tag, msg);
 }
 
 #[derive(Debug, Deserialize)]
@@ -318,6 +363,6 @@ mod tests {
     fn resolve_host_with_config(config: &DnsConfig, host: &str) -> ResolveResult {
         unsafe { CONFIG = Some(config.clone()); }
         unsafe { CACHE = Some(HostCache::new(config.ttl_secs)); }
-        resolve_host(host)
+        resolve_host(None, host)
     }
 }
