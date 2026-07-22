@@ -80,3 +80,12 @@
 -keep class com.google.zxing.qrcode.QRCodeReader { *; }
 -keep class com.google.zxing.qrcode.QRCodeWriter { *; }
 -keep class com.google.zxing.qrcode.decoder.ErrorCorrectionLevel { *; }
+
+# Rust TV Server JNI
+-keep class com.fongmi.android.tv.server.RustServer {
+    native int nativeStart(int, int);
+    native void nativeStop();
+}
+-keep class com.fongmi.android.tv.server.RustServerCallback {
+    public static native ** onHandle(...);
+}

@@ -67,6 +67,21 @@ android {
         }
     }
 
+    task buildTvServerLib(type: Exec) {
+        def script = rootProject.file('build-tv-server.sh')
+        if (script.exists()) {
+            commandLine 'bash', script.absolutePath
+        } else {
+            commandLine 'echo', 'skip build-tv-server.sh'
+        }
+    }
+
+    tasks.whenTaskAdded { task ->
+        if (task.name == 'preBuild') {
+            task.dependsOn 'buildTvServerLib'
+        }
+    }
+
     configurations.configureEach {
         exclude group: 'stax', module: 'stax-api'
         exclude group: 'xpp3', module: 'xpp3'
