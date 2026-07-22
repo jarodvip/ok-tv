@@ -8,6 +8,8 @@ import androidx.startup.Initializer;
 import com.fongmi.android.tv.event.EventIndex;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.activity.CrashActivity;
+import com.fongmi.android.tv.net.RustDns;
+import com.fongmi.android.tv.net.RustDnsCallback;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.net.OkHttp;
 import com.orhanobut.logger.AndroidLogAdapter;
@@ -30,6 +32,7 @@ public class Startup implements Initializer<Void> {
         Logger.addLogAdapter(new AndroidLogAdapter(PrettyFormatStrategy.newBuilder().methodCount(0).showThreadInfo(false).tag("TV").build()));
         EventBus.builder().addIndex(new EventIndex()).installDefaultEventBus();
         OkHttp.dns().setDoh(Doh.objectFrom(Setting.getDoh()));
+        RustDns.init(RustDnsCallback.buildConfigJson());
         return null;
     }
 
