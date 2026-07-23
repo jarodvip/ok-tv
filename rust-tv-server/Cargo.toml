@@ -7,16 +7,12 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-axum = { version = "0.7", default-features = false, features = ["json", "form", "http1", "tokio", "tower-log", "query"] }
+axum = { version = "0.7", default-features = false, features = ["json", "form", "http1", "tokio", "query"] }
 hyper = { version = "0.14", default-features = false, features = ["http1", "server", "tcp"] }
 jni = { version = "0.21.1", default-features = false, features = ["invocation"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"], default-features = false }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-url = "2.5"
 base64 = "0.21"
+parking_lot = "0.12"

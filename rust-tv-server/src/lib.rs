@@ -5,19 +5,16 @@ use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
 use jni::objects::JValueGen;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 use std::sync::LazyLock;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
-use tower::ServiceBuilder;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
 
 static SERVER_CELL: LazyLock<Mutex<Option<RustServerHandle>>> = LazyLock::new(|| Mutex::new(None));
 #[allow(static_mut_refs)]
@@ -132,18 +129,19 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStop(
     mut env: JNIEnv,
     _class: JClass,
 ) {
-    if let Some(handle) = SERVER_CELL.lock().unwrap().as_ref() {
+    let mut guard = SERVER_CELL.lock();
+    if let Some(handle) = guard.as_ref() {
         let handle = handle.clone();
         let _ = tokio::runtime::Handle::try_current().map(|h| h.spawn(async move { handle.stop().await }));
     }
 
-    if SERVER_CELL.lock().unwrap().take().is_some() {
+    if guard.take().is_some() {
             let _ = env.exception_occurred();
         }
 }
 
 async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, ServerError> {
-    if SERVER_CELL.lock().unwrap().is_some() {
+    if (*SERVER_CELL.lock()).is_some() {
         return Err(ServerError::AlreadyStarted);
     }
 
@@ -178,12 +176,6 @@ async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, Ser
             .route("/file/{*path}", axum::routing::any(file_axum))
             .route("/upload", axum::routing::any(upload_axum))
             .fallback(fallback_axum)
-            .layer(
-                ServiceBuilder::new()
-                    .layer(TraceLayer::new_for_http())
-                    .layer(CorsLayer::permissive()),
-            )
-            .into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(async move {
         loop {
@@ -196,7 +188,7 @@ async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, Ser
 
     let handle = tokio::spawn(async move {
         if let Err(err) = server.await {
-            tracing::warn!(%err, "rust http server error");
+            eprintln!("rust http server error: {}", err);
         }
     });
 
@@ -206,7 +198,7 @@ async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, Ser
         shutdown,
     };
 
-    *SERVER_CELL.lock().unwrap() = Some(server_handle.clone());
+    *SERVER_CELL.lock() = Some(server_handle.clone());
 
     Ok(server_handle)
 }
