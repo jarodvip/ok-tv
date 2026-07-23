@@ -3,7 +3,7 @@ package com.github.catvod.net.interceptor;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.fongmi.android.tv.net.RustNet;
+import com.github.catvod.net.RustNet;
 
 import okhttp3.HttpUrl;
 import okhttp3.Interceptor;
@@ -11,6 +11,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class RequestInterceptor implements Interceptor {
@@ -51,7 +52,8 @@ public class RequestInterceptor implements Interceptor {
             String headersJson = RustNet.injectHeaders(host, "{}");
             if (TextUtils.isEmpty(headersJson)) return;
             org.json.JSONObject obj = new org.json.JSONObject(headersJson);
-            for (String key : obj.keySet()) {
+            for (Iterator<String> keys = obj.keys(); keys.hasNext(); ) {
+                String key = keys.next();
                 String value = obj.optString(key);
                 if (!TextUtils.isEmpty(key) && !TextUtils.isEmpty(value)) {
                     builder.header(key, value);

@@ -1,6 +1,7 @@
 package com.github.catvod.net;
 
 import java.net.Authenticator;
+import com.github.catvod.bean.Proxy;
 import java.net.PasswordAuthentication;
 import java.util.Objects;
 

@@ -2,24 +2,19 @@ package com.fongmi.android.tv.net;
 
 import android.util.Log;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 public final class RustNet {
 
     private static final String TAG = "RustNet";
     private static volatile boolean inited;
     private static volatile String proxyCache;
 
-    private RustNet() {
-    }
+    private RustNet() {}
 
     public static synchronized void init(String rulesJson) {
         if (inited) {
             Log.w(TAG, "already inited");
             return;
         }
-
         try {
             nativeInit(rulesJson);
             inited = true;
@@ -67,14 +62,9 @@ public final class RustNet {
 
     public static String resolveProxyCached(String host) {
         if (host == null) return null;
-        if (proxyCache != null && proxyCache.contains(host)) {
-            return proxyCache;
-        }
-
+        if (proxyCache != null && proxyCache.contains(host)) return proxyCache;
         String resolved = resolveProxy(host);
-        if (resolved != null && !resolved.isEmpty()) {
-            proxyCache = resolved;
-        }
+        if (resolved != null && !resolved.isEmpty()) proxyCache = resolved;
         return resolved;
     }
 

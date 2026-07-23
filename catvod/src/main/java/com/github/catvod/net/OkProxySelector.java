@@ -3,7 +3,7 @@ package com.github.catvod.net;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.fongmi.android.tv.net.RustNet;
+import com.github.catvod.net.RustNet;
 import com.github.catvod.utils.Util;
 
 import org.json.JSONException;
@@ -24,7 +24,7 @@ public class OkProxySelector extends ProxySelector {
 
     private static final String TAG = "OkProxySelector";
 
-    private final List<Proxy> proxy;
+    private final List<com.github.catvod.bean.Proxy> proxy;
     private final ProxySelector system;
     private boolean authSet;
 
@@ -34,9 +34,9 @@ public class OkProxySelector extends ProxySelector {
         Authenticator.setDefault(new ProxyAuthenticator(this));
     }
 
-    public synchronized void addAll(List<Proxy> items) {
+    public synchronized void addAll(List<com.github.catvod.bean.Proxy> items) {
         if (items.isEmpty()) return;
-        items.forEach(Proxy::init);
+        items.forEach(com.github.catvod.bean.Proxy::init);
         proxy.addAll(items);
         proxy.sort(null);
     }
@@ -46,7 +46,7 @@ public class OkProxySelector extends ProxySelector {
         proxy.clear();
     }
 
-    public List<Proxy> getProxy() {
+    public List<com.github.catvod.bean.Proxy> getProxy() {
         return proxy;
     }
 
@@ -65,7 +65,7 @@ public class OkProxySelector extends ProxySelector {
         }
 
         if (proxy.isEmpty()) return fallback(uri);
-        for (Proxy item : proxy) {
+        for (com.github.catvod.bean.Proxy item : proxy) {
             for (String pattern : item.getHosts()) {
                 if (Util.containOrMatch(host, pattern)) {
                     return !item.getProxies().isEmpty() ? item.getProxies() : fallback(uri);
@@ -86,7 +86,7 @@ public class OkProxySelector extends ProxySelector {
             if (proxyType.isEmpty() || hostname.isEmpty() || port <= 0) return List.of();
             java.net.Proxy.Type type = "socks".equalsIgnoreCase(proxyType) ? java.net.Proxy.Type.SOCKS : java.net.Proxy.Type.HTTP;
             InetSocketAddress address = InetSocketAddress.createUnresolved(hostname, port);
-            return List.of(new Proxy(type, address));
+            return List.of(new java.net.Proxy(type, address));
         } catch (Exception e) {
             Log.w(TAG, "resolve rust proxy failed", e);
             return List.of();

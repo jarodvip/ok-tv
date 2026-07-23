@@ -2,23 +2,18 @@ package com.fongmi.android.tv.net;
 
 import android.util.Log;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 public final class RustDns {
 
     private static final String TAG = "RustDns";
     private static volatile boolean inited;
 
-    private RustDns() {
-    }
+    private RustDns() {}
 
     public static synchronized void init(String configJson) {
         if (inited) {
             Log.w(TAG, "already inited");
             return;
         }
-
         try {
             nativeInit(configJson);
             inited = true;

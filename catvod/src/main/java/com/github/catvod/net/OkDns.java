@@ -5,6 +5,8 @@ import androidx.annotation.NonNull;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.utils.Util;
 
+import android.text.TextUtils;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
@@ -44,7 +46,7 @@ public class OkDns implements Dns {
         String target = map.get(hostname);
         if (target != null) return target;
         for (Map.Entry<String, String> entry : map.entrySet()) if (Util.containOrMatch(hostname, entry.getKey())) return entry.getValue();
-        String rust = com.fongmi.android.tv.net.RustDns.resolveHost(hostname);
+        String rust = com.github.catvod.net.RustDns.resolveHost(hostname);
         if (!TextUtils.isEmpty(rust) && !hostname.equals(rust)) return rust;
         return hostname;
     }

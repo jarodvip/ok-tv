@@ -54,10 +54,12 @@ android {
 
     signingConfigs {
         release {
-            storeFile file(localProps['storeFile'])
-            keyAlias localProps['keyAlias']
-            keyPassword localProps['storePassword']
-            storePassword localProps['storePassword']
+            if (localProps['storeFile']) {
+                storeFile file(localProps['storeFile'])
+                keyAlias localProps['keyAlias']
+                keyPassword localProps['storePassword']
+                storePassword localProps['storePassword']
+            }
         }
     }
 
@@ -65,7 +67,9 @@ android {
         release {
             minifyEnabled = true
             shrinkResources = true
-            signingConfig = signingConfigs.release
+            if (signingConfigs.release.storeFile) {
+                signingConfig = signingConfigs.release
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules-media.pro'
         }
     }
@@ -125,6 +129,14 @@ dependencies {
     implementation libs.appcompat
     implementation libs.lifecycle.service
     implementation libs.media
+    implementation libs.media3.common
+    implementation libs.media3.session
+    implementation libs.media3.ui
+    implementation libs.media3.exoplayer
+    implementation libs.media3.extractor
+    implementation libs.media3.datasource
+    implementation libs.media3.datasource.okhttp
+    implementation libs.media3.database
     implementation libs.palette
     implementation libs.recyclerview
     implementation libs.room.runtime

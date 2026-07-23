@@ -1,23 +1,25 @@
 use base64::{engine::general_purpose, Engine as _};
-use http::Response;
-use axum_multipart::Multipart;
-use jni::objects::{JClass, JString, JavaVM};
+use axum::http::{Response, StatusCode, HeaderValue};
+use jni::JavaVM;
+use jni::JNIEnv;
+use jni::objects::{JClass, JString};
 use jni::sys::jstring;
-use jni::{AttachArgs, JNIEnv};
+use jni::objects::JValueGen;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::sync::LazyLock;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
-static SERVER_CELL: OnceCell<RustServerHandle> = OnceCell::new();
+static SERVER_CELL: LazyLock<Mutex<Option<RustServerHandle>>> = LazyLock::new(|| Mutex::new(None));
 #[allow(static_mut_refs)]
 static mut JAVA_VM: Option<JavaVM> = None;
 
@@ -127,21 +129,21 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStart<
 
 #[no_mangle]
 pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStop(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
 ) {
-    if let Some(handle) = SERVER_CELL.get() {
+    if let Some(handle) = SERVER_CELL.lock().unwrap().as_ref() {
         let handle = handle.clone();
         let _ = tokio::runtime::Handle::try_current().map(|h| h.spawn(async move { handle.stop().await }));
     }
 
-    if let Err(err) = SERVER_CELL.try_reset() {
-        let _ = env.exception_occurred();
-    }
+    if SERVER_CELL.lock().unwrap().take().is_some() {
+            let _ = env.exception_occurred();
+        }
 }
 
 async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, ServerError> {
-    if SERVER_CELL.get().is_some() {
+    if SERVER_CELL.lock().unwrap().is_some() {
         return Err(ServerError::AlreadyStarted);
     }
 
@@ -200,13 +202,11 @@ async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, Ser
 
     let server_handle = RustServerHandle {
         port,
-        handle,
+        handle: Arc::new(handle),
         shutdown,
     };
 
-    SERVER_CELL
-        .set(server_handle.clone())
-        .expect("server cell set failed");
+    *SERVER_CELL.lock().unwrap() = Some(server_handle.clone());
 
     Ok(server_handle)
 }
@@ -229,7 +229,7 @@ async fn request_headers(headers: axum::http::HeaderMap) -> HashMap<String, Stri
     out
 }
 
-fn default_handler(request: RequestView<'_>) -> ResponseView {
+fn default_handler(_request: RequestView<'_>) -> ResponseView {
     ResponseView::not_found()
 }
 
@@ -243,69 +243,67 @@ async fn handle_request(
     let request = RequestView {
         method: method.as_str(),
         path: uri.path(),
-        query: query.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&"),
-        body,
-        headers,
+        query: &query.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&"),
+        body: body.as_ref(),
+        headers: &headers,
     };
 
     let response = call_java_or_fallback(request);
-    axum::response::IntoResponse::into_response((
-        axum::http::StatusCode::from_u16(response.status).unwrap_or(axum::http::StatusCode::OK),
-        response.content_type,
-        response.body,
-    ))
+    let builder = Response::builder()
+        .status(axum::http::StatusCode::from_u16(response.status).unwrap_or(axum::http::StatusCode::OK))
+        .header("Content-Type", response.content_type);
+    builder.body(axum::body::Body::from(response.body)).unwrap_or_else(|_| Response::new(axum::body::Body::default()))
 }
 
 async fn device_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
     headers: axum::http::HeaderMap,
 ) -> impl axum::response::IntoResponse {
-    handle_request(method, axum::http::Uri::from_static("/device"), query.0, Vec::new(), request_headers(headers).await).await
+    handle_request(_method, axum::http::Uri::from_static("/device"), query.0, Vec::new(), request_headers(headers).await).await
 }
 
 async fn tvbus_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
     headers: axum::http::HeaderMap,
 ) -> impl axum::response::IntoResponse {
-    handle_request(method, axum::http::Uri::from_static("/tvbus"), query.0, Vec::new(), request_headers(headers).await).await
+    handle_request(_method, axum::http::Uri::from_static("/tvbus"), query.0, Vec::new(), request_headers(headers).await).await
 }
 
 async fn action_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
-    body: axum::extract::DefaultBodyLimit(axum::body::Bytes),
+    body: axum::body::Bytes,
 ) -> impl axum::response::IntoResponse {
-    handle_request(method, axum::http::Uri::from_static("/action"), query.0, body.0.to_vec(), HashMap::new()).await
+    handle_request(_method, axum::http::Uri::from_static("/action"), query.0, body.to_vec(), HashMap::new()).await
 }
 
 async fn media_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
 ) -> impl axum::response::IntoResponse {
-    handle_request(method, axum::http::Uri::from_static("/media"), query.0, Vec::new(), HashMap::new()).await
+    handle_request(_method, axum::http::Uri::from_static("/media"), query.0, Vec::new(), HashMap::new()).await
 }
 
 async fn cache_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
 ) -> impl axum::response::IntoResponse {
-    handle_request(method, axum::http::Uri::from_static("/cache"), query.0, Vec::new(), HashMap::new()).await
+    handle_request(_method, axum::http::Uri::from_static("/cache"), query.0, Vec::new(), HashMap::new()).await
 }
 
 async fn parse_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
 ) -> impl axum::response::IntoResponse {
     let result = call_java_handler("/parse", &query.0.iter().map(|(k,v)| format!("{k}={v}")).collect::<Vec<_>>().join("&"), &[]);
     let body = result.as_ref().map(|r| r.body.clone()).unwrap_or_default();
     let content_type = result.as_ref().map(|r| r.content_type.clone()).unwrap_or_default();
-    (
-        axum::http::StatusCode::OK,
-        if content_type.is_empty() { axum::http::HeaderValue::from_static("text/html") } else { axum::http::HeaderValue::from_str(&content_type).unwrap_or_else(|_| axum::http::HeaderValue::from_static("text/html")) },
-        body,
-    )
+    let mut response = Response::new(axum::body::Body::from(body));
+    *response.status_mut() = axum::http::StatusCode::OK;
+    response.headers_mut().insert("Content-Type", if content_type.is_empty() { axum::http::HeaderValue::from_static("text/html") } else { axum::http::HeaderValue::from_str(&content_type).unwrap_or_else(|_| axum::http::HeaderValue::from_static("text/html")) });
+    response
 }
 
 #[derive(Debug, Deserialize)]
@@ -317,10 +315,10 @@ struct ProxyResponse {
 }
 
 async fn proxy_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
     headers: axum::http::HeaderMap,
-    body: axum::extract::DefaultBodyLimit(axum::body::Bytes),
+    body: axum::body::Bytes,
 ) -> impl axum::response::IntoResponse {
     let mut merged = query.0;
     let mut headers_map = HashMap::new();
@@ -334,7 +332,7 @@ async fn proxy_axum(
     merged.insert("_headers".to_string(), headers_json);
     let query_string = merged.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&");
 
-    let result = call_java_handler("/proxy", &query_string, &body.0);
+    let result = call_java_handler("/proxy", &query_string, &body);
     let text = result.as_ref().map(|r| String::from_utf8_lossy(&r.body).to_string()).unwrap_or_default();
 
     match serde_json::from_str::<ProxyResponse>(&text) {
@@ -350,8 +348,8 @@ async fn proxy_axum(
         }
         Err(_) => {
             let mut response = Response::new(axum::body::Body::from(text));
-            *response.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
-            response.headers_mut().insert("Content-Type", http::HeaderValue::from_static("text/plain"));
+            *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            response.headers_mut().insert("Content-Type", HeaderValue::from_static("text/plain"));
             response
         }
     }
@@ -379,7 +377,7 @@ async fn del_folder_axum(
 }
 
 async fn file_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
     axum::extract::Path(path): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
@@ -416,19 +414,21 @@ async fn file_axum(
         }
         Err(_) => {
             let mut response = Response::new(axum::body::Body::from(text));
-            *response.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
-            response.headers_mut().insert("Content-Type", http::HeaderValue::from_static("text/plain"));
+            *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            response.headers_mut().insert("Content-Type", HeaderValue::from_static("text/plain"));
             response
         }
     }
 }
 
 async fn upload_axum(
-    method: axum::http::Method,
+    _method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
-    mut multipart: Multipart,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
 ) -> impl axum::response::IntoResponse {
-    let items = collect_upload_items(&mut multipart).await;
+    let content_type = headers.get("content-type").and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
+    let items = collect_upload_items(body.as_ref(), &content_type);
     let body = match serde_json::to_string(&items) {
         Ok(json) => json.into_bytes(),
         Err(_) => "[]".as_bytes().to_vec(),
@@ -437,11 +437,10 @@ async fn upload_axum(
     let query_string = query.0.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&");
     let result = call_java_handler("/upload", &query_string, &body);
     let text = result.as_ref().map(|r| String::from_utf8_lossy(&r.body).to_string()).unwrap_or_default();
-    (
-        axum::http::StatusCode::OK,
-        axum::http::HeaderValue::from_static("text/plain"),
-        axum::body::Body::from(text),
-    )
+    let mut response = Response::new(axum::body::Body::from(text));
+    *response.status_mut() = axum::http::StatusCode::OK;
+    response.headers_mut().insert("Content-Type", HeaderValue::from_static("text/plain"));
+    response
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -451,37 +450,83 @@ struct UploadItemJson {
     is_zip: bool,
 }
 
-async fn collect_upload_items(multipart: &mut Multipart) -> Vec<UploadItemJson> {
+fn collect_upload_items(body: &[u8], content_type: &str) -> Vec<UploadItemJson> {
     let mut items = Vec::new();
-    while let Ok(Some(mut field)) = multipart.next_field().await {
-        let filename = field.file_name().unwrap_or_default().to_string();
-        let name = field.name().unwrap_or_default().to_string();
-        if name.is_empty() || filename.is_empty() {
-            continue;
-        }
-
-        let temp_path = std::env::temp_dir().join(format!("upload_{}_{}", name, filename));
-        let mut file = match tokio::fs::File::create(&temp_path).await {
-            Ok(f) => f,
-            Err(_) => continue,
-        };
-
-        let mut is_zip = filename.to_lowercase().ends_with(".zip");
-        while let Ok(Some(chunk)) = field.chunk().await {
-            if chunk.starts_with(b"%PDF-") || chunk.len() > 8 {
-                is_zip = false;
-            }
-            if let Err(_) = tokio::io::copy(&mut std::io::Cursor::new(chunk), &mut file).await {
-                break;
-            }
-        }
-        drop(file);
-
+    let boundary = match parse_multipart_boundary(content_type) {
+        Some(b) => b,
+        None => return items,
+    };
+    for (filename, temp_path, is_zip) in parse_multipart_fields(body, &boundary) {
         items.push(UploadItemJson {
             filename,
             temp_path: temp_path.to_string_lossy().to_string(),
             is_zip,
         });
+    }
+    items
+}
+
+fn parse_multipart_boundary(content_type: &str) -> Option<String> {
+    for part in content_type.split(';') {
+        let part = part.trim();
+        if let Some(rest) = part.strip_prefix("boundary=") {
+            return Some(rest.trim_matches('"').to_string());
+        }
+    }
+    None
+}
+
+fn parse_multipart_fields(body: &[u8], boundary: &str) -> Vec<(String, std::path::PathBuf, bool)> {
+    let mut items = Vec::new();
+    let delimiter = format!("--{}", boundary);
+    let end_delimiter = format!("{}--", delimiter);
+    let data = std::str::from_utf8(body).unwrap_or_default();
+    let mut parts = data.split(&delimiter);
+    while let Some(part) = parts.next() {
+        if part.trim_start().starts_with("--") {
+            break;
+        }
+        let mut header_lines = part.lines();
+        let mut disposition: Option<String> = None;
+        while let Some(line) = header_lines.next() {
+            if line.is_empty() {
+                break;
+            }
+            if let Some(rest) = line.strip_prefix("Content-Disposition:") {
+                disposition = Some(rest.trim().to_string());
+            }
+        }
+        let disposition = match disposition {
+            Some(d) => d,
+            None => continue,
+        };
+        let filename = disposition
+            .split(';')
+            .find_map(|s| s.trim().strip_prefix("filename="))
+            .map(|s| s.trim_matches('"').to_string())
+            .unwrap_or_default();
+        let name = disposition
+            .split(';')
+            .find_map(|s| s.trim().strip_prefix("name="))
+            .map(|s| s.trim_matches('"').to_string())
+            .unwrap_or_default();
+        if name.is_empty() || filename.is_empty() {
+            continue;
+        }
+        let body_start = part.find("
+
+").unwrap_or(part.len());
+        let content = part[body_start..].trim_end_matches("
+");
+        if content.starts_with(&end_delimiter) {
+            continue;
+        }
+        let temp_path = std::env::temp_dir().join(format!("upload_{}_{}", name, filename));
+        if std::fs::write(&temp_path, content).is_err() {
+            continue;
+        }
+        let is_zip = filename.to_lowercase().ends_with(".zip");
+        items.push((filename, temp_path, is_zip));
     }
     items
 }
@@ -503,8 +548,8 @@ fn call_java_or_fallback(request: RequestView<'_>) -> ResponseView {
 
 fn call_java_handler(path: &str, query: &str, body: &[u8]) -> Option<ResponseView> {
     let vm = java_vm_ref()?;
-    unsafe {
-        let mut env = vm.attach_current_thread_as_daemon(AttachArgs::default()).ok()?;
+    {
+        let mut env = vm.attach_current_thread_as_daemon().ok()?;
 
         let path = env.new_string(path).ok()?;
         let query = env.new_string(query).ok()?;
@@ -515,11 +560,11 @@ fn call_java_handler(path: &str, query: &str, body: &[u8]) -> Option<ResponseVie
                 "com/fongmi/android/tv/server/RustServerCallback",
                 "onHandle",
                 "(Ljava/lang/String;Ljava/lang/String;[B)Ljava/lang/String;",
-                &[path.into(), query.into(), body.into()],
+                &[JValueGen::from(&path), JValueGen::from(&query), JValueGen::from(&body)],
             )
             .ok()?;
 
-        let value: JString = result.l().ok()?;
+        let value: JString = result.l().ok()?.into();
         let text: String = env.get_string(&value).ok()?.into();
         drop(env);
 

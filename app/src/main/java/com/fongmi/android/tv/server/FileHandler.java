@@ -53,7 +53,9 @@ public final class FileHandler {
                 org.json.JSONObject obj = new org.json.JSONObject();
                 obj.put("name", file.getName());
                 obj.put("path", relativeTo(file, rootPath));
-                obj.put("time", Formatters.LOCAL_DATETIME.format(Instant.ofEpochMilli(file.lastModified()).atZone(ZoneId.systemDefault()));
+                long time = file.lastModified();
+                String timeStr = Formatters.LOCAL_DATETIME.format(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()));
+                obj.put("time", timeStr);
                 obj.put("dir", file.isDirectory() ? 1 : 0);
                 files.put(obj);
             }
