@@ -8,7 +8,7 @@
 
 ## 构建 .so
 ```bash
-./build-tv-server.sh
+bash build-tv-server.sh
 ```
 
 产物会尝试复制到：

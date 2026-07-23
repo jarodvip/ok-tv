@@ -18,7 +18,13 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 static SERVER_CELL: OnceCell<RustServerHandle> = OnceCell::new();
+#[allow(static_mut_refs)]
 static mut JAVA_VM: Option<JavaVM> = None;
+
+#[allow(static_mut_refs)]
+fn java_vm_ref() -> Option<&'static JavaVM> {
+    unsafe { JAVA_VM.as_ref() }
+}
 
 #[derive(Debug, Error)]
 pub enum ServerError {
@@ -49,6 +55,14 @@ impl ResponseView {
         Self {
             status: 200,
             body: body.into(),
+            content_type: "text/plain".to_string(),
+        }
+    }
+
+    pub fn not_found() -> Self {
+        Self {
+            status: 404,
+            body: b"not found".to_vec(),
             content_type: "text/plain".to_string(),
         }
     }
@@ -159,7 +173,7 @@ async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, Ser
             .route("/newFolder", axum::routing::any(new_folder_axum))
             .route("/delFile", axum::routing::any(del_file_axum))
             .route("/delFolder", axum::routing::any(del_folder_axum))
-            .route("/file", axum::routing::any(file_axum))
+            .route("/file/{*path}", axum::routing::any(file_axum))
             .route("/upload", axum::routing::any(upload_axum))
             .fallback(fallback_axum)
             .layer(
@@ -216,7 +230,7 @@ async fn request_headers(headers: axum::http::HeaderMap) -> HashMap<String, Stri
 }
 
 fn default_handler(request: RequestView<'_>) -> ResponseView {
-    ResponseView::ok_text(format!("rust-fallback {} {}", request.method, request.path))
+    ResponseView::not_found()
 }
 
 async fn handle_request(
@@ -367,14 +381,23 @@ async fn del_folder_axum(
 async fn file_axum(
     method: axum::http::Method,
     query: axum::extract::Query<HashMap<String, String>>,
+    axum::extract::Path(path): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
 ) -> impl axum::response::IntoResponse {
     let range = headers.get("range").and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
+    let file_path = path.strip_prefix("/").unwrap_or(&path).to_string();
     let query_string = if range.is_empty() {
         query.0.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&")
     } else {
         let mut merged = query.0.clone();
         merged.insert("range".to_string(), range);
+        merged.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&")
+    };
+    let query_string = if file_path.is_empty() {
+        query_string
+    } else {
+        let mut merged = query.0.clone();
+        merged.insert("path".to_string(), format!("/file/{}", file_path));
         merged.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&")
     };
     let result = call_java_handler("/file", &query_string, &[]);
@@ -479,8 +502,8 @@ fn call_java_or_fallback(request: RequestView<'_>) -> ResponseView {
 }
 
 fn call_java_handler(path: &str, query: &str, body: &[u8]) -> Option<ResponseView> {
+    let vm = java_vm_ref()?;
     unsafe {
-        let vm = JAVA_VM.as_ref()?;
         let mut env = vm.attach_current_thread_as_daemon(AttachArgs::default()).ok()?;
 
         let path = env.new_string(path).ok()?;

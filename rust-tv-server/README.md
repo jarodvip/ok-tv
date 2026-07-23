@@ -9,12 +9,16 @@ Rust 版本地 HTTP 服务原型，用于 ok-tv P0 迁移。
 
 ## 构建
 ```bash
-./build.sh
+bash build-tv-server.sh
 ```
 
-产物会输出到 `rust-tv-server/target/.../libtv_server.so`，可按模块路径放到 `app/src/main/jniLibs/...`。
+推荐使用仓库根脚本 `build-tv-server.sh` 构建，产物会自动复制到 `app/src/main/jniLibs/...`。
+
+## 当前进展
+- 已接入 Rust 本地 HTTP 路由 `/proxy`、`/file`、`/upload`、`/newFolder`、`/delFile`、`/delFolder`
+- Rust 服务优先启动，失败时仍回退到 NanoHTTPD
 
 ## 下一步
-- 把现有 `Process` 逻辑逐一切入
-- 增加 multipart/form-data 解析
-- 增加 Android asset/文件回调
+- 完成 `/file` 子路径与 Range/ETag 的 Rust 原生实现
+- 完成 `/upload` 文件写入和 zip 解压迁移
+- 统一 Rust 与 Java 回调的 content-type/error 约定

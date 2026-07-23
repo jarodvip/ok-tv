@@ -2,6 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [ -n "${ANDROID_NDK_HOME:-}" ]; then
+  export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+fi
+if [ -n "${ANDROID_NDK_ROOT:-}" ] && [ -d "$ANDROID_NDK_ROOT" ]; then
+  export PATH="$ANDROID_NDK_ROOT:$PATH"
+fi
 JNI_DIR="$ROOT_DIR/../app/src/main/jniLibs"
 
 if ! command -v cargo >/dev/null 2>&1; then
@@ -15,15 +22,13 @@ fi
 
 mkdir -p "$JNI_DIR"
 
-pushd "$ROOT_DIR" >/dev/null
+cd "$ROOT_DIR"
 
-cargo ndk \
+cargo ndk --manifest-path Cargo.toml \
   -t arm64-v8a \
   -t armeabi-v7a \
   -P 24 \
   -o "$JNI_DIR" \
   build
-
-popd >/dev/null
 
 echo "tv dns .so updated"
