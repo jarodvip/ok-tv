@@ -18,5 +18,7 @@ cd "$SCRIPT_DIR"
 cargo ndk --manifest-path Cargo.toml \
   --target arm64-v8a \
   --target armeabi-v7a \
+  --target x86_64-linux-android \
+  --target i686-linux-android \
   --platform 24 \
   build
