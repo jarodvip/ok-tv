@@ -3,6 +3,7 @@ package com.github.catvod.utils;
 import android.os.Environment;
 
 import com.github.catvod.Init;
+import com.github.catvod.utils.RustUtil;
 import com.orhanobut.logger.Logger;
 
 import java.io.ByteArrayOutputStream;
@@ -127,7 +128,7 @@ public class Path {
     }
 
     public static File jar(String name) {
-        return new File(jar(), Util.md5(name).concat(".jar"));
+        return new File(jar(), RustUtil.md5(name).concat(".jar"));
     }
 
     public static File thunder(String name) {

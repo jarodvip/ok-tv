@@ -2,21 +2,17 @@ package com.github.catvod.utils;
 
 import android.content.Context;
 import android.net.wifi.WifiManager;
-import android.text.TextUtils;
 import android.util.Base64;
 
 import com.github.catvod.Init;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.math.BigInteger;
+import java.security.MessageDigest;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Enumeration;
 import java.util.Locale;
 
@@ -53,9 +49,7 @@ public class Util {
     }
 
     public static byte[] hex2byte(String s) {
-        byte[] bytes = new byte[s.length() / 2];
-        for (int i = 0; i < bytes.length; i++) bytes[i] = Integer.valueOf(s.substring(i * 2, i * 2 + 2), 16).byteValue();
-        return bytes;
+        return com.github.catvod.utils.RustUtil.hex2byte(s);
     }
 
     public static boolean equals(String name, String md5) {
@@ -63,17 +57,7 @@ public class Util {
     }
 
     public static String md5(String src) {
-        try {
-            if (TextUtils.isEmpty(src)) return "";
-            MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] bytes = digest.digest(src.getBytes(StandardCharsets.UTF_8));
-            BigInteger no = new BigInteger(1, bytes);
-            StringBuilder sb = new StringBuilder(no.toString(16));
-            while (sb.length() < 32) sb.insert(0, "0");
-            return sb.toString().toLowerCase();
-        } catch (NoSuchAlgorithmException e) {
-            return "";
-        }
+        return com.github.catvod.utils.RustUtil.md5(src);
     }
 
     public static String md5(File file) {
