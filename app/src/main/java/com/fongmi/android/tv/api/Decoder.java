@@ -2,18 +2,13 @@ package com.fongmi.android.tv.api;
 
 import android.util.Base64;
 
+import com.fongmi.android.tv.util.RustUtil;
 import com.fongmi.android.tv.utils.UrlUtil;
 import com.github.catvod.net.OkHttp;
 import com.github.catvod.utils.Json;
-import com.github.catvod.utils.Util;
 
-import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 
 import okhttp3.HttpUrl;
 import okhttp3.Response;
@@ -57,16 +52,7 @@ public class Decoder {
     }
 
     private static String cbc(String data) throws Exception {
-        String decode = new String(Util.hex2byte(data)).toLowerCase();
-        String key = padEnd(decode.substring(decode.indexOf("$#") + 2, decode.indexOf("#$")));
-        String iv = padEnd(decode.substring(decode.length() - 13));
-        SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(), "AES");
-        IvParameterSpec ivSpec = new IvParameterSpec(iv.getBytes());
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
-        data = data.substring(data.indexOf("2324") + 4, data.length() - 26);
-        byte[] decryptData = cipher.doFinal(Util.hex2byte(data));
-        return new String(decryptData, StandardCharsets.UTF_8);
+        return RustUtil.cbcDecrypt(data);
     }
 
     private static String base64(String data) {
@@ -80,7 +66,4 @@ public class Decoder {
         return matcher.find() ? data.substring(data.indexOf(matcher.group()) + 10) : "";
     }
 
-    private static String padEnd(String key) {
-        return key + "0000000000000000".substring(key.length());
-    }
 }
