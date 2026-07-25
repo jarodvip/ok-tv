@@ -16,8 +16,11 @@ import okio.Okio;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.github.catvod.bean.Header;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.zip.Inflater;
@@ -34,6 +37,8 @@ public class ResponseInterceptor implements Interceptor {
     public void clear() {
         redirectMap.clear();
     }
+
+    public void addAll(List<Header> items) {}
 
     @Override
     public Response intercept(Chain chain) throws IOException {

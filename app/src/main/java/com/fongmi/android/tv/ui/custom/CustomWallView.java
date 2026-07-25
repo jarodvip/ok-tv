@@ -17,7 +17,7 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.ui.PlayerView;
+import com.fongmi.android.tv.ui.CustomPlayerView;
 import androidx.palette.graphics.Palette;
 
 import com.fongmi.android.tv.R;
@@ -45,7 +45,7 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     private static final int TYPE_VIDEO = 2;
     private ViewWallBinding binding;
     private GifDrawable drawable;
-    private PlayerView video;
+    private CustomPlayerView video;
     private ExoPlayer player;
 
     public CustomWallView(@NonNull Context context, @Nullable AttributeSet attrs) {
@@ -149,12 +149,11 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
         player = new ExoPlayer.Builder(getContext()).build();
         player.setRepeatMode(Player.REPEAT_MODE_ALL);
         player.setPlayWhenReady(true);
-        player.mute();
     }
 
     private void ensureVideoView() {
         if (video != null) return;
-        video = (PlayerView) LayoutInflater.from(getContext()).inflate(R.layout.view_wall_video, this, false);
+        video = (CustomPlayerView) LayoutInflater.from(getContext()).inflate(R.layout.view_wall_video, this, false);
         addView(video, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     }
 

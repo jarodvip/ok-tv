@@ -1,7 +1,8 @@
-package androidx.media3.exoplayer.source.preload;
+package com.fongmi.android.tv.exoplayer.source.preload;
 
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PriorityTaskManager;
+import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 
 public final class DiskPreloadManager {
@@ -36,6 +37,6 @@ public final class DiskPreloadManager {
 
     private DiskPreloadManager() {}
 
-    public void start(androidx.media3.exoplayer.ExoPlayer player, MediaItem mediaItem, Options options) {}
+    public void start(com.fongmi.android.tv.exoplayer.ExoPlayer player, MediaItem mediaItem, Options options) {}
     public void release() {}
 }

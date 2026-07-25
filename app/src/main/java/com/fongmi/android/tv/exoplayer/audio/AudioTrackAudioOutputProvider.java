@@ -8,5 +8,5 @@ public final class AudioTrackAudioOutputProvider {
         public AudioTrackAudioOutputProvider build() { return new AudioTrackAudioOutputProvider(); }
     }
 
-    private AudioTrackAudioOutputProvider() {}
+    public AudioTrackAudioOutputProvider() {}
 }

@@ -57,8 +57,8 @@ public final class PlaybackAction {
     }
 
     public static void setMediaOptions(PlayerManager player, View edition, View chapter) {
-        setVisible(edition, hasEdition(player));
-        setVisible(chapter, hasChapter(player));
+        setVisible(edition, false);
+        setVisible(chapter, false);
     }
 
     public static String getEngineText(PlayerManager player) {
@@ -92,14 +92,6 @@ public final class PlaybackAction {
 
     private static boolean hasSpeed(PlayerManager player) {
         return player != null && player.isVod();
-    }
-
-    private static boolean hasEdition(PlayerManager player) {
-        return player != null && player.haveEdition();
-    }
-
-    private static boolean hasChapter(PlayerManager player) {
-        return player != null && player.haveChapter();
     }
 
     private static float applySpeedText(PlayerManager player, TextView speed, String text) {

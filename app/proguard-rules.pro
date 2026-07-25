@@ -89,3 +89,12 @@
 -keep class com.fongmi.android.tv.server.RustServerCallback {
     public static native ** onHandle(...);
 }
+
+# Media3 本地 stub 扩展，与库类存在重复定义
+# 本地 stub 包含库 API + 项目自定义方法，需保留
+-dontwarn androidx.media3.common.**
+-dontwarn androidx.media3.exoplayer.**
+-dontwarn androidx.media3.ui.**
+-keep class androidx.media3.common.** { *; }
+-keep class androidx.media3.exoplayer.** { *; }
+-keep class androidx.media3.ui.** { *; }

@@ -40,6 +40,7 @@ public class VodConfig extends BaseConfig {
     private List<String> ads;
     private List<String> flags;
     private List<Parse> parses;
+    private List<String> hosts;
 
     public static VodConfig get() {
         return Loader.INSTANCE;
@@ -156,7 +157,7 @@ public class VodConfig extends BaseConfig {
         setRules(Rule.arrayFrom(fetchArray(object, "rules")));
         setDoh(Doh.arrayFrom(fetchArray(object, "doh")));
         setFlags(Json.safeListString(object, "flags"));
-        setHosts(Json.safeListString(object, "hosts"));
+        setVodHosts(Json.safeListString(object, "hosts"));
         setAds(Json.safeListString(object, "ads"));
     }
 
@@ -219,9 +220,8 @@ public class VodConfig extends BaseConfig {
         syncRustDns();
     }
 
-    private void setHosts(List<String> hosts) {
+    private void setVodHosts(List<String> hosts) {
         this.hosts = hosts;
-        syncRustDns();
     }
 
     public List<Rule> getRules() {

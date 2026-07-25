@@ -568,3 +568,7 @@ fn call_java_handler(path: &str, query: &str, body: &[u8]) -> Option<ResponseVie
     }
 }
 
+#[cfg(test)]
+#[path = "test.rs"]
+mod tests;
+

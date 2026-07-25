@@ -26,10 +26,10 @@ import androidx.media3.exoplayer.drm.FrameworkMediaDrm;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionToken;
 import androidx.media3.ui.CaptionStyleCompat;
-import androidx.media3.ui.PlayerSeekView;
-import androidx.media3.ui.PlayerView;
+import com.fongmi.android.tv.ui.PlayerSeekView;
+import com.fongmi.android.tv.ui.CustomPlayerView;
 import androidx.media3.ui.TimeBar;
-import androidx.media3.ui.danmaku.DanmakuConfig;
+import com.fongmi.android.tv.ui.danmaku.DanmakuConfig;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Result;
@@ -114,7 +114,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     protected abstract PlayerSeekView getSeekView();
 
-    protected abstract PlayerView getPlayerView();
+    protected abstract CustomPlayerView getPlayerView();
 
     protected abstract String getPlaybackKey();
 
@@ -357,7 +357,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void configurePlayerView() {
-        PlayerView playerView = getPlayerView();
+        CustomPlayerView playerView = getPlayerView();
         playerView.setRender(PlayerSetting.getRender());
         playerView.setDanmakuOkHttpClient(OkHttp.player());
         playerView.setDanmakuEnabled(DanmakuSetting.isShow());
@@ -437,11 +437,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         @Override
         public void onDecodeChanged() {
             if (isOwner()) PlaybackActivity.this.onDecodeChanged();
-        }
-
-        @Override
-        public void onMediaOptionsChanged() {
-            if (isOwner()) PlaybackActivity.this.onMediaOptionsChanged();
         }
 
         @Override

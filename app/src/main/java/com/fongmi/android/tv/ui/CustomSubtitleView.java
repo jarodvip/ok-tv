@@ -1,8 +1,6 @@
-package androidx.media3.ui;
+package com.fongmi.android.tv.ui;
 
 import android.content.Context;
-import android.graphics.Canvas;
-import android.text.Layout;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -14,21 +12,21 @@ import androidx.media3.ui.CaptionStyleCompat;
 
 import java.util.List;
 
-public class SubtitleView extends View {
+public class CustomSubtitleView extends View {
 
     private float position;
     private float textSize;
+    public static final float DEFAULT_TEXT_SIZE_FRACTION = 0.0625f;
 
-    public SubtitleView(Context context) { super(context); init(); }
-    public SubtitleView(Context context, @Nullable AttributeSet attrs) { super(context, attrs); init(); }
-    public SubtitleView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) { super(context, attrs, defStyleAttr); init(); }
+    public CustomSubtitleView(Context context) { super(context); init(); }
+    public CustomSubtitleView(Context context, @Nullable AttributeSet attrs) { super(context, attrs); init(); }
+    public CustomSubtitleView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) { super(context, attrs, defStyleAttr); init(); }
 
     private void init() {
         position = 0.0f;
         textSize = 0.0f;
     }
 
-    public void setCues(@Nullable CueGroup cues) {}
     public void setCues(@Nullable List<Cue> cues) {}
     public float getPosition() { return position; }
     public void addPosition(float delta) { position += delta; }
@@ -45,7 +43,4 @@ public class SubtitleView extends View {
     public void setBottomPaddingFraction(float fraction) {}
     public void setBottomPosition(float fraction) {}
     public void setStyle(@Nullable CaptionStyleCompat style) {}
-
-    @Override
-    protected void onDraw(Canvas canvas) {}
 }

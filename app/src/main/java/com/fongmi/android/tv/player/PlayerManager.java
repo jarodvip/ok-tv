@@ -5,15 +5,12 @@ import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 import androidx.media3.common.C;
-import androidx.media3.common.MediaChapter;
-import androidx.media3.common.MediaEdition;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
-import androidx.media3.ui.danmaku.DanmakuConfig;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
@@ -30,6 +27,7 @@ import com.fongmi.android.tv.player.parse.ParseJob;
 import com.fongmi.android.tv.player.track.TrackUtil;
 import com.fongmi.android.tv.setting.DanmakuSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
+import com.fongmi.android.tv.ui.danmaku.DanmakuConfig;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
@@ -50,9 +48,9 @@ public class PlayerManager implements ParseCallback {
     private PlaySpec spec;
     private Player player;
 
-    private DanmakuConfig danmakuConfig;
     private long pendingStartPositionMs;
     private boolean danmakuEnabled;
+    private DanmakuConfig danmakuConfig;
     private boolean initTrack;
     private int retry;
     private int decode;
@@ -64,7 +62,6 @@ public class PlayerManager implements ParseCallback {
         this.engine = PlayerEngineFactory.create(decode, listener);
         this.player = engine.getPlayer();
         this.pendingStartPositionMs = C.TIME_UNSET;
-        this.danmakuConfig = DanmakuSetting.getConfig();
         this.danmakuEnabled = DanmakuSetting.isShow();
     }
 
@@ -87,14 +84,6 @@ public class PlayerManager implements ParseCallback {
 
     public Tracks getCurrentTracks() {
         return player.getCurrentTracks();
-    }
-
-    public List<MediaChapter> getCurrentMediaChapters() {
-        return player.getCurrentMediaChapters();
-    }
-
-    public List<MediaEdition> getCurrentMediaEditions() {
-        return player.getCurrentMediaEditions();
     }
 
     public MediaItem getCurrentMediaItem() {
@@ -122,7 +111,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public List<Danmaku> getDanmakus() {
-        return spec != null ? spec.getDanmakus() : null;
+        return spec == null ? List.of() : spec.getDanmakus();
     }
 
     private void setDanmakus(List<Danmaku> items) {
@@ -174,14 +163,6 @@ public class PlayerManager implements ParseCallback {
 
     public boolean haveTrack(int type) {
         return TrackUtil.count(getCurrentTracks(), type) > 0;
-    }
-
-    public boolean haveEdition() {
-        return !getCurrentMediaEditions().isEmpty();
-    }
-
-    public boolean haveChapter() {
-        return !getCurrentMediaChapters().isEmpty();
     }
 
     public boolean haveDanmaku() {
@@ -254,15 +235,7 @@ public class PlayerManager implements ParseCallback {
         startCurrent();
     }
 
-    public void selectChapter(MediaChapter chapter) {
-        player.selectChapter(chapter);
-    }
-
-    public void selectEdition(MediaEdition edition) {
-        player.selectEdition(edition);
-    }
-
-    public void setDanmakuConfig(DanmakuConfig config) {
+    public void setDanmakuConfig(com.fongmi.android.tv.ui.danmaku.DanmakuConfig config) {
         danmakuConfig = config;
         callback.onDanmakuConfigChanged(danmakuConfig);
     }
@@ -342,22 +315,6 @@ public class PlayerManager implements ParseCallback {
 
     public void seekTo(long time) {
         player.seekTo(time);
-    }
-
-    public long getTextOffsetMs() {
-        return player.isCommandAvailable(Player.COMMAND_GET_TEXT_OFFSET) ? player.getTextOffsetMs() : 0;
-    }
-
-    public void setTextOffsetMs(long offsetMs) {
-        if (player.isCommandAvailable(Player.COMMAND_SET_TEXT_OFFSET)) player.setTextOffsetMs(offsetMs);
-    }
-
-    public long getAudioOffsetMs() {
-        return player.isCommandAvailable(Player.COMMAND_GET_AUDIO_OFFSET) ? player.getAudioOffsetMs() : 0;
-    }
-
-    public void setAudioOffsetMs(long offsetMs) {
-        if (player.isCommandAvailable(Player.COMMAND_SET_AUDIO_OFFSET)) player.setAudioOffsetMs(offsetMs);
     }
 
     public void reset() {
@@ -512,15 +469,13 @@ public class PlayerManager implements ParseCallback {
 
         void onDecodeChanged();
 
-        void onMediaOptionsChanged();
-
         void onError(String msg);
 
         void onPlayerRebuild(Player newPlayer);
 
         void onDanmakuSourceChanged(Uri uri);
 
-        void onDanmakuConfigChanged(DanmakuConfig config);
+        void onDanmakuConfigChanged(com.fongmi.android.tv.ui.danmaku.DanmakuConfig config);
 
         void onDanmakuEnabledChanged(boolean enabled);
 
@@ -545,16 +500,6 @@ public class PlayerManager implements ParseCallback {
             setTrack(Track.find(getKey()));
             callback.onTracksChanged();
             initTrack = true;
-        }
-
-        @Override
-        public void onMediaChaptersChanged(@NonNull List<MediaChapter> chapters) {
-            callback.onMediaOptionsChanged();
-        }
-
-        @Override
-        public void onMediaEditionsChanged(@NonNull List<MediaEdition> editions) {
-            callback.onMediaOptionsChanged();
         }
 
         @Override

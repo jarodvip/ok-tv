@@ -7,7 +7,6 @@ import com.fongmi.android.tv.bean.Drm;
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.player.track.LangUtil;
 import com.fongmi.android.tv.player.util.PlayerHelper;
-import com.fongmi.android.tv.setting.Setting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,19 +17,12 @@ public final class MediaItemFactory {
         return buildUpon(spec).build();
     }
 
-    public static MediaItem from(PlaySpec spec, int decode) {
-        return buildUpon(spec).setDecode(decode).build();
-    }
-
     private static MediaItem.Builder buildUpon(PlaySpec spec) {
         return new MediaItem.Builder().setUri(spec.getUri())
                 .setSubtitleConfigurations(buildSubtitleConfigs(spec.getSubs()))
                 .setDrmConfiguration(buildDrmConfig(spec.getDrm()))
                 .setRequestMetadata(buildRequestMetadata(spec))
                 .setMediaMetadata(spec.getMetadata())
-                .setAdblock(Setting.isAdblock())
-                .setMimeType(spec.getFormat())
-                .setImageDurationMs(15000)
                 .setMediaId(spec.getKey());
     }
 

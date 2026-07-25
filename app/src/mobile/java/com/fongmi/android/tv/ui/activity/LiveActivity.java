@@ -17,8 +17,8 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
-import androidx.media3.ui.PlayerSeekView;
-import androidx.media3.ui.PlayerView;
+import com.fongmi.android.tv.ui.PlayerSeekView;
+import com.fongmi.android.tv.ui.CustomPlayerView;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 
@@ -143,7 +143,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     @Override
-    protected PlayerView getPlayerView() {
+    protected CustomPlayerView getPlayerView() {
         return mBinding.player;
     }
 

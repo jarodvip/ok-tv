@@ -3,7 +3,7 @@ package com.fongmi.android.tv.player.exo;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
-import androidx.media3.exoplayer.ExoPlayer;
+import com.fongmi.android.tv.exoplayer.ExoPlayer;
 
 import com.fongmi.android.tv.player.engine.PlayerEngine;
 import com.fongmi.android.tv.player.media.MediaItemFactory;
@@ -95,7 +95,7 @@ public class ExoPlayerEngine implements PlayerEngine {
     }
 
     private void startInternal(long position) {
-        MediaItem item = MediaItemFactory.from(spec, decode);
+        MediaItem item = MediaItemFactory.from(spec);
         player.setMediaItem(item, position);
         preCache.start(player, item);
         player.prepare();

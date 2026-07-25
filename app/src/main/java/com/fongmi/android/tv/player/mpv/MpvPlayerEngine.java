@@ -2,7 +2,7 @@ package com.fongmi.android.tv.player.mpv;
 
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
-import androidx.media3.mpvplayer.MpvPlayer;
+import com.fongmi.android.tv.mpvplayer.MpvPlayer;
 
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.player.engine.PlayerEngine;

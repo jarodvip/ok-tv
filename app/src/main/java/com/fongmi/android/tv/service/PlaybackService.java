@@ -23,7 +23,7 @@ import androidx.media3.session.SessionCommand;
 import androidx.media3.session.SessionCommands;
 import androidx.media3.session.SessionError;
 import androidx.media3.session.SessionResult;
-import androidx.media3.ui.danmaku.DanmakuConfig;
+import com.fongmi.android.tv.ui.danmaku.DanmakuConfig;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.BuildConfig;
@@ -107,7 +107,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
 
     private void setupNotification() {
         DefaultMediaNotificationProvider provider = new DefaultMediaNotificationProvider.Builder(this).build();
-        session.setMediaButtonPreferences(ImmutableList.of(buildRepeatButton(), buildStopButton()));
+        session.setCustomLayout(ImmutableList.of(buildRepeatButton(), buildStopButton()));
         provider.setSmallIcon(R.drawable.ic_notification);
         setMediaNotificationProvider(provider);
     }
@@ -476,11 +476,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     }
 
     @Override
-    public void onMediaOptionsChanged() {
-        playerCallbacks.forEach(PlayerCallback::onMediaOptionsChanged);
-    }
-
-    @Override
     public void onError(String msg) {
         playerCallbacks.forEach(callback -> callback.onError(msg));
     }
@@ -522,7 +517,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
 
         @Override
         public void onRepeatModeChanged(int repeatMode) {
-            if (session != null) session.setMediaButtonPreferences(ImmutableList.of(buildRepeatButton(), buildStopButton()));
+            if (session != null) session.setCustomLayout(ImmutableList.of(buildRepeatButton(), buildStopButton()));
         }
     };
 
@@ -585,9 +580,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         }
 
         default void onDecodeChanged() {
-        }
-
-        default void onMediaOptionsChanged() {
         }
 
         default void onError(String msg) {

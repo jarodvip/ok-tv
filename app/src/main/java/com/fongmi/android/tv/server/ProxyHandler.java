@@ -11,6 +11,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 public final class ProxyHandler {
@@ -35,7 +36,9 @@ public final class ProxyHandler {
             if (headersJson != null && !headersJson.isEmpty()) {
                 try {
                     JSONObject headersObj = new JSONObject(headersJson);
-                    for (String key : headersObj.keySet()) {
+                    Iterator<String> keys = headersObj.keys();
+                    while (keys.hasNext()) {
+                        String key = keys.next();
                         params.put(key, headersObj.optString(key, ""));
                     }
                 } catch (JSONException e) {

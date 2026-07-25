@@ -1,4 +1,4 @@
-package androidx.media3.ui.danmaku;
+package com.fongmi.android.tv.ui.danmaku;
 
 public final class DanmakuConfig {
     public static final int STYLE_NONE = 0;

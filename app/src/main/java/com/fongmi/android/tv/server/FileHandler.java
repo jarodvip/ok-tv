@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.CRC32;
 
@@ -37,10 +37,10 @@ public final class FileHandler {
             File file = Path.local(path.substring(5));
             if (file.isDirectory()) return getFolder(file);
             if (file.isFile()) return getFile(file, rangeHeader);
-            return toJson(NanoHTTPD.Response.Status.NOT_FOUND.getRequestStatus(), "text/plain", new EnumMap<>(String.class), "file not found".getBytes());
+            return toJson(NanoHTTPD.Response.Status.NOT_FOUND.getRequestStatus(), "text/plain", new HashMap<>(), "file not found".getBytes());
         } catch (Throwable e) {
             Log.w(TAG, "file handler failed", e);
-            return toJson(NanoHTTPD.Response.Status.INTERNAL_ERROR.getRequestStatus(), "text/plain", new EnumMap<>(String.class), e.getMessage().getBytes());
+            return toJson(NanoHTTPD.Response.Status.INTERNAL_ERROR.getRequestStatus(), "text/plain", new HashMap<>(), e.getMessage().getBytes());
         }
     }
 
@@ -62,10 +62,10 @@ public final class FileHandler {
             org.json.JSONObject info = new org.json.JSONObject();
             info.put("parent", parentOf(dir, rootDir, rootPath));
             info.put("files", files);
-            return toJson(NanoHTTPD.Response.Status.OK.getRequestStatus(), "application/json", new EnumMap<>(String.class), info.toString().getBytes());
+            return toJson(NanoHTTPD.Response.Status.OK.getRequestStatus(), "application/json", new HashMap<>(), info.toString().getBytes());
         } catch (Throwable e) {
             Log.w(TAG, "folder handler failed", e);
-            return toJson(NanoHTTPD.Response.Status.INTERNAL_ERROR.getRequestStatus(), "text/plain", new EnumMap<>(String.class), e.getMessage().getBytes());
+            return toJson(NanoHTTPD.Response.Status.INTERNAL_ERROR.getRequestStatus(), "text/plain", new HashMap<>(), e.getMessage().getBytes());
         }
     }
 
@@ -73,7 +73,7 @@ public final class FileHandler {
         long fileLen = file.length();
         String etag = etag(file, fileLen);
         if (matchesEtag(rangeHeader, etag)) {
-            return toJson(NanoHTTPD.Response.Status.NOT_MODIFIED.getRequestStatus(), NanoHTTPD.getMimeTypeForFile(file.getName()), new EnumMap<>(String.class), new byte[0]);
+            return toJson(NanoHTTPD.Response.Status.NOT_MODIFIED.getRequestStatus(), NanoHTTPD.getMimeTypeForFile(file.getName()), new HashMap<>(), new byte[0]);
         }
 
         long[] rangeInfo = parseRange(fileLen, rangeHeader, etag);
@@ -83,14 +83,14 @@ public final class FileHandler {
         boolean valid = rangeInfo[3] == 1;
 
         if (!valid) {
-            return toJson(NanoHTTPD.Response.Status.RANGE_NOT_SATISFIABLE.getRequestStatus(), "text/plain", new EnumMap<>(String.class), new byte[0]);
+            return toJson(NanoHTTPD.Response.Status.RANGE_NOT_SATISFIABLE.getRequestStatus(), "text/plain", new HashMap<>(), new byte[0]);
         }
 
         try (FileInputStream fis = new FileInputStream(file)) {
             long skipped = fis.skip(start);
             if (skipped != start) throw new IOException("Failed to skip desired number of bytes");
             byte[] body = readStream(fis, length);
-            Map<String, String> headers = new EnumMap<>(String.class);
+            Map<String, String> headers = new HashMap<>();
             headers.put("Content-Range", "bytes " + start + "-" + end + "/" + fileLen);
             headers.put("Content-Length", String.valueOf(length));
             headers.put("Accept-Ranges", "bytes");

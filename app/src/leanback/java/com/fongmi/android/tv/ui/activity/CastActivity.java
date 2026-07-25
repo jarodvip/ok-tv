@@ -14,8 +14,8 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
-import androidx.media3.ui.PlayerSeekView;
-import androidx.media3.ui.PlayerView;
+import com.fongmi.android.tv.ui.PlayerSeekView;
+import com.fongmi.android.tv.ui.CustomPlayerView;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.App;
@@ -77,7 +77,7 @@ public class CastActivity extends PlaybackActivity implements CustomKeyDownVod.L
     }
 
     @Override
-    protected PlayerView getPlayerView() {
+    protected CustomPlayerView getPlayerView() {
         return mBinding.player;
     }
 
@@ -412,7 +412,7 @@ public class CastActivity extends PlaybackActivity implements CustomKeyDownVod.L
 
     @Override
     public void onSubtitleClick() {
-        SubtitleDialog.create().view(mBinding.player.getSubtitleView()).player(player()).show(this);
+        SubtitleDialog.create().view(((CustomPlayerView) mBinding.player).getSubtitleView()).player(player()).show(this);
         App.post(this::hideControl, 100);
     }
 

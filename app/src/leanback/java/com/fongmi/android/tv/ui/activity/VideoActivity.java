@@ -24,8 +24,8 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
-import androidx.media3.ui.PlayerSeekView;
-import androidx.media3.ui.PlayerView;
+import com.fongmi.android.tv.ui.PlayerSeekView;
+import com.fongmi.android.tv.ui.CustomPlayerView;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 
@@ -63,10 +63,8 @@ import com.fongmi.android.tv.ui.adapter.QualityAdapter;
 import com.fongmi.android.tv.ui.adapter.QuickAdapter;
 import com.fongmi.android.tv.ui.custom.CustomKeyDownVod;
 import com.fongmi.android.tv.ui.custom.CustomMovement;
-import com.fongmi.android.tv.ui.dialog.ChapterDialog;
 import com.fongmi.android.tv.ui.dialog.ContentDialog;
 import com.fongmi.android.tv.ui.dialog.DanmakuDialog;
-import com.fongmi.android.tv.ui.dialog.EditionDialog;
 import com.fongmi.android.tv.ui.dialog.ParseDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerEngineDialog;
 import com.fongmi.android.tv.ui.dialog.SubtitleDialog;
@@ -237,7 +235,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     @Override
-    protected PlayerView getPlayerView() {
+    protected CustomPlayerView getPlayerView() {
         return mBinding.player;
     }
 
@@ -312,8 +310,6 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         mBinding.control.action.ending.setOnClickListener(view -> onEnding());
         mBinding.control.action.repeat.setOnClickListener(view -> onRepeat());
         mBinding.control.action.danmaku.setOnClickListener(view -> onDanmaku());
-        mBinding.control.action.edition.setOnClickListener(view -> onEdition());
-        mBinding.control.action.chapter.setOnClickListener(view -> onChapter());
         mBinding.control.action.opening.setOnClickListener(view -> onOpening());
         mBinding.control.action.ending.setOnLongClickListener(view -> onEndingReset());
         mBinding.control.action.opening.setOnLongClickListener(view -> onOpeningReset());
@@ -953,18 +949,8 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         hideControl();
     }
 
-    private void onEdition() {
-        EditionDialog.create().player(player()).show(this);
-        hideControl();
-    }
-
-    private void onChapter() {
-        ChapterDialog.create().player(player()).show(this);
-        hideControl();
-    }
-
     private void onDanmaku() {
-        DanmakuDialog.create().player(player()).show(this);
+        DanmakuDialog.create().show(getSupportFragmentManager(), null);
         hideControl();
     }
 
@@ -1167,11 +1153,6 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     @Override
-    protected void onMediaOptionsChanged() {
-        setMediaOptionVisible();
-    }
-
-    @Override
     protected void onError(String msg) {
         mVod.playbackError(msg);
     }
@@ -1218,7 +1199,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     public void onSubtitleClick() {
-        SubtitleDialog.create().view(mBinding.player.getSubtitleView()).player(player()).show(this);
+        SubtitleDialog.create().view(((CustomPlayerView) mBinding.player).getSubtitleView()).player(player()).show(this);
         App.post(this::hideControl, 100);
     }
 
@@ -1250,16 +1231,12 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         PlaybackAction.setTracks(player(), mBinding.control.action.text, mBinding.control.action.audio, mBinding.control.action.video);
     }
 
-    private void setMediaOptionVisible() {
-        PlaybackAction.setMediaOptions(player(), mBinding.control.action.edition, mBinding.control.action.chapter);
+    private void setMetadata() {
+        player().setMetadata(buildMetadata());
     }
 
     private MediaMetadata buildMetadata() {
         return VodPlaybackMedia.metadata(mHistory, getEpisode());
-    }
-
-    private void setMetadata() {
-        player().setMetadata(buildMetadata());
     }
 
     @Override

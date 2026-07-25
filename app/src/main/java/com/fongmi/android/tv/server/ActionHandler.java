@@ -83,7 +83,7 @@ public final class ActionHandler {
     }
 
     private static String file(String path) {
-        return FileHandler.handle(path);
+        return FileHandler.handle(path, "");
     }
 
     private static String search(String word) {

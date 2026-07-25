@@ -153,12 +153,15 @@ public class Util {
     }
 
     public static String substring(String text) {
-        return substring(text, 1);
+        return com.fongmi.android.tv.util.RustUtil.substring(text);
     }
 
     public static String substring(String text, int num) {
-        if (text != null && text.length() > num) return text.substring(0, text.length() - num);
-        return text;
+        return com.fongmi.android.tv.util.RustUtil.substring(text, num);
+    }
+
+    public static boolean containOrMatch(String text, String pattern) {
+        return com.fongmi.android.tv.util.RustUtil.containOrMatch(text, pattern);
     }
 
     public static boolean isLeanback() {

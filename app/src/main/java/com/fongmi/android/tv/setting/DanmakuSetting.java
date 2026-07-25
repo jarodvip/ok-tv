@@ -2,7 +2,7 @@ package com.fongmi.android.tv.setting;
 
 import android.text.TextUtils;
 
-import androidx.media3.ui.danmaku.DanmakuConfig;
+import com.fongmi.android.tv.ui.danmaku.DanmakuConfig;
 
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.github.catvod.utils.Prefers;

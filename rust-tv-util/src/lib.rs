@@ -781,6 +781,98 @@ fn md5_hex(input: String) -> String {
     })
 }
 
+// ===== substring =====
+
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeSubstring(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+    num: jni::sys::jint,
+) -> jstring {
+    let s = jstring_to_str(&mut env, &text);
+    let result = substring_impl(&s, num as usize);
+    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeSubstringOne(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
+    let s = jstring_to_str(&mut env, &text);
+    let result = substring_impl(&s, 1);
+    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeSubstring(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+    num: jni::sys::jint,
+) -> jstring {
+    let s = jstring_to_str(&mut env, &text);
+    let result = substring_impl(&s, num as usize);
+    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeSubstringOne(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
+    let s = jstring_to_str(&mut env, &text);
+    let result = substring_impl(&s, 1);
+    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
+
+fn substring_impl(text: &str, num: usize) -> String {
+    if !text.is_empty() && text.len() > num {
+        text[..text.len() - num].to_string()
+    } else {
+        text.to_string()
+    }
+}
+
+// ===== containOrMatch =====
+
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeContainOrMatch(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+    pattern: JString,
+) -> jni::sys::jboolean {
+    let t = jstring_to_str(&mut env, &text);
+    let p = jstring_to_str(&mut env, &pattern);
+    contain_or_match_impl(&t, &p) as jni::sys::jboolean
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeContainOrMatch(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+    pattern: JString,
+) -> jni::sys::jboolean {
+    let t = jstring_to_str(&mut env, &text);
+    let p = jstring_to_str(&mut env, &pattern);
+    contain_or_match_impl(&t, &p) as jni::sys::jboolean
+}
+
+fn contain_or_match_impl(text: &str, pattern: &str) -> bool {
+    if text.contains(pattern) {
+        return true;
+    }
+    match Regex::new(pattern) {
+        Ok(re) => re.is_match(text),
+        Err(_) => false,
+    }
+}
+
 // ===== QueryUtil =====
 
 #[no_mangle]
@@ -1054,5 +1146,27 @@ mod tests {
         assert_eq!(resolve_uri_v2("http://example.com", "/path"), "http://example.com/path");
         assert_eq!(resolve_uri_v2("http://example.com/path", "#frag"), "http://example.com/path#frag");
         assert_eq!(resolve_uri_v2("http://example.com/path?q", "?p"), "http://example.com/path?p");
+    }
+
+    #[test]
+    fn test_substring() {
+        assert_eq!(substring_impl("hello", 1), "hell");
+        assert_eq!(substring_impl("hello", 5), "hello");
+        assert_eq!(substring_impl("hello", 6), "hello");
+        assert_eq!(substring_impl("", 1), "");
+        assert_eq!(substring_impl("a", 1), "a");
+        assert_eq!(substring_impl("hello", 0), "hello");
+    }
+
+    #[test]
+    fn test_contain_or_match() {
+        assert!(contain_or_match_impl("hello world", "hello"));
+        assert!(contain_or_match_impl("hello world", "wor"));
+        assert!(contain_or_match_impl("12345", r#"^\d+$"#));
+        assert!(contain_or_match_impl("hello", ""));
+        assert!(!contain_or_match_impl("hello world", "xyz"));
+        assert!(!contain_or_match_impl("abc", r#"^\d+$"#));
+        assert!(!contain_or_match_impl("hello", "notfound"));
+        assert!(!contain_or_match_impl("", r#"^[a-z]+$"#));
     }
 }

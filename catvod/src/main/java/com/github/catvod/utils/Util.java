@@ -77,20 +77,15 @@ public class Util {
     }
 
     public static boolean containOrMatch(String text, String regex) {
-        try {
-            return text.contains(regex) || text.matches(regex);
-        } catch (Exception e) {
-            return false;
-        }
+        return com.github.catvod.utils.RustUtil.containOrMatch(text, regex);
     }
 
     public static String substring(String text) {
-        return substring(text, 1);
+        return com.github.catvod.utils.RustUtil.substring(text);
     }
 
     public static String substring(String text, int num) {
-        if (text != null && text.length() > num) return text.substring(0, text.length() - num);
-        return text;
+        return com.github.catvod.utils.RustUtil.substring(text, num);
     }
 
     public static String getIp() {

@@ -3,10 +3,9 @@ package com.fongmi.android.tv.player.mpv;
 import android.text.TextUtils;
 
 import androidx.media3.common.Player;
-import androidx.media3.common.util.Util;
-import androidx.media3.mpvplayer.MpvPlayer;
-import androidx.media3.mpvplayer.MpvPlayerConfig;
-import androidx.media3.ui.SubtitleView;
+import com.fongmi.android.tv.mpvplayer.MpvPlayer;
+import com.fongmi.android.tv.mpvplayer.MpvPlayerConfig;
+import com.fongmi.android.tv.ui.CustomSubtitleView;
 
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.player.track.LangUtil;
@@ -32,6 +31,14 @@ public final class MpvUtil {
     private static final String OPT_SUB_LANG = "slang";
     private static final String VALUE_ANDROID_VK = "androidvk";
     private static final String VALUE_VULKAN = "vulkan";
+
+    private static double constrainValue(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static float constrainValue(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
 
     public static boolean isAvailable() {
         try {
@@ -79,11 +86,11 @@ public final class MpvUtil {
     private static void addAndroidDefaultOptions(MpvPlayerConfig.Builder builder) {
         File configDir = Path.mpv();
         File cacheDir = Path.mpvCache();
-        builder.addConfigDirectory(configDir).addAndroidFontConfig(configDir, cacheDir).addAndroidDefaults(getVideoOutputDriver(), cacheDir);
+        builder.addConfigDirectory(configDir.getAbsolutePath()).addAndroidFontConfig(configDir.getAbsolutePath(), cacheDir.getAbsolutePath()).addAndroidDefaults(getVideoOutputDriver(), cacheDir.getAbsolutePath());
     }
 
     private static void addTlsCaFile(MpvPlayerConfig.Builder builder) {
-        builder.addTlsCaFileFromAsset(App.get(), ASSET_CA_FILE, Path.files(ASSET_CA_FILE));
+        builder.addTlsCaFileFromAsset(App.get(), ASSET_CA_FILE, Path.files(ASSET_CA_FILE).getAbsolutePath());
     }
 
     private static void addTrackLanguageOptions(MpvPlayerConfig.Builder builder) {
@@ -101,7 +108,7 @@ public final class MpvUtil {
 
     private static void addPreloadOptions(MpvPlayerConfig.Builder builder) {
         if (!PreloadSetting.isPreload()) return;
-        builder.addDiskCacheOptions(Path.mpvCache(), PreloadSetting.getPreloadTimeSeconds(), PreloadSetting.getPreloadSizeMb());
+        builder.addDiskCacheOptions(Path.mpvCache().getAbsolutePath(), PreloadSetting.getPreloadTimeSeconds(), PreloadSetting.getPreloadSizeMb());
     }
 
     private static void addSubtitleStyleOptions(MpvPlayerConfig.Builder builder) {
@@ -116,12 +123,12 @@ public final class MpvUtil {
     private static double getSubtitlePosition() {
         float position = PlayerSetting.getSubtitlePosition();
         if (position == 0) return DEFAULT_SUB_POS;
-        return Util.constrainValue(DEFAULT_SUB_POS - position * 100.0, MIN_SUB_POS, MAX_SUB_POS);
+        return constrainValue(DEFAULT_SUB_POS - position * 100.0, MIN_SUB_POS, MAX_SUB_POS);
     }
 
     private static double getSubtitleScale() {
         float textSize = PlayerSetting.getSubtitleTextSize();
         if (textSize == 0) return DEFAULT_SUB_SCALE;
-        return Util.constrainValue(textSize / SubtitleView.DEFAULT_TEXT_SIZE_FRACTION, MIN_SUB_SCALE, MAX_SUB_SCALE);
+        return constrainValue(textSize / CustomSubtitleView.DEFAULT_TEXT_SIZE_FRACTION, MIN_SUB_SCALE, MAX_SUB_SCALE);
     }
 }

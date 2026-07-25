@@ -42,9 +42,39 @@ public final class RustUtil {
         }
     }
 
+    public static String substring(String text) {
+        if (text == null) return null;
+        try {
+            return nativeSubstringOne(text);
+        } catch (Throwable e) {
+            return text;
+        }
+    }
+
+    public static String substring(String text, int num) {
+        if (text == null) return null;
+        try {
+            return nativeSubstring(text, num);
+        } catch (Throwable e) {
+            return text;
+        }
+    }
+
+    public static boolean containOrMatch(String text, String pattern) {
+        if (text == null || pattern == null) return false;
+        try {
+            return nativeContainOrMatch(text, pattern);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
     private static native void nativeInit();
     private static native String nativeMd5(String text);
     private static native byte[] nativeHex2byte(String hex);
+    private static native String nativeSubstring(String text, int num);
+    private static native String nativeSubstringOne(String text);
+    private static native boolean nativeContainOrMatch(String text, String pattern);
 
     static {
         try {

@@ -30,8 +30,8 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
-import androidx.media3.ui.PlayerSeekView;
-import androidx.media3.ui.PlayerView;
+import com.fongmi.android.tv.ui.PlayerSeekView;
+import com.fongmi.android.tv.ui.CustomPlayerView;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.transition.ChangeBounds;
 import androidx.transition.TransitionManager;
@@ -74,10 +74,8 @@ import com.fongmi.android.tv.ui.custom.CustomKeyDown;
 import com.fongmi.android.tv.ui.custom.CustomMovement;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
 import com.fongmi.android.tv.ui.dialog.CastDialog;
-import com.fongmi.android.tv.ui.dialog.ChapterDialog;
 import com.fongmi.android.tv.ui.dialog.ControlDialog;
 import com.fongmi.android.tv.ui.dialog.DanmakuDialog;
-import com.fongmi.android.tv.ui.dialog.EditionDialog;
 import com.fongmi.android.tv.ui.dialog.EpisodeGridDialog;
 import com.fongmi.android.tv.ui.dialog.EpisodeListDialog;
 import com.fongmi.android.tv.ui.dialog.InfoDialog;
@@ -257,7 +255,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     @Override
-    protected PlayerView getPlayerView() {
+    protected CustomPlayerView getPlayerView() {
         return mBinding.player;
     }
 
@@ -348,8 +346,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.action.repeat.setOnClickListener(view -> onRepeat());
         mBinding.control.action.opening.setOnClickListener(view -> onOpening());
         mBinding.control.action.danmaku.setOnClickListener(view -> onDanmaku());
-        mBinding.control.action.edition.setOnClickListener(view -> onEdition());
-        mBinding.control.action.chapter.setOnClickListener(view -> onChapter());
         mBinding.control.action.episodes.setOnClickListener(view -> onEpisodes());
         mBinding.control.action.text.setOnLongClickListener(view -> onTextLong());
         mBinding.control.action.ending.setOnLongClickListener(view -> onEndingReset());
@@ -895,16 +891,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         hideControl();
     }
 
-    private void onEdition() {
-        EditionDialog.create().player(player()).show(this);
-        hideControl();
-    }
-
-    private void onChapter() {
-        ChapterDialog.create().player(player()).show(this);
-        hideControl();
-    }
-
     private void onDanmaku() {
         DanmakuDialog.create().player(player()).show(this);
         hideControl();
@@ -1280,9 +1266,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     @Override
-    protected void onMediaOptionsChanged() {
-        setMediaOptionVisible();
-    }
+    protected void onMediaOptionsChanged() {    }
 
     @Override
     protected void onError(String msg) {
@@ -1399,11 +1383,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void setTrackVisible() {
         PlaybackAction.setTracks(player(), mBinding.control.action.text, mBinding.control.action.audio, mBinding.control.action.video);
     }
-
-    private void setMediaOptionVisible() {
-        PlaybackAction.setMediaOptions(player(), mBinding.control.action.edition, mBinding.control.action.chapter);
-    }
-
     private MediaMetadata buildMetadata() {
         return VodPlaybackMedia.metadata(mHistory, getEpisode());
     }

@@ -107,7 +107,6 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     }
 
     private void onOffset(View view) {
-        OffsetDialog.create().player(player).type(type).show(requireActivity());
         dismiss();
     }
 

@@ -9,7 +9,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
-import androidx.media3.ui.SubtitleView;
+import com.fongmi.android.tv.ui.CustomSubtitleView;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.databinding.DialogSubtitleBinding;
@@ -22,14 +22,14 @@ import com.github.bassaer.library.MDColor;
 public final class SubtitleDialog extends BaseBottomSheetDialog {
 
     private DialogSubtitleBinding binding;
-    private SubtitleView subtitleView;
+    private CustomSubtitleView subtitleView;
     private PlayerManager player;
 
     public static SubtitleDialog create() {
         return new SubtitleDialog();
     }
 
-    public SubtitleDialog view(SubtitleView subtitleView) {
+    public SubtitleDialog view(CustomSubtitleView subtitleView) {
         this.subtitleView = subtitleView;
         return this;
     }

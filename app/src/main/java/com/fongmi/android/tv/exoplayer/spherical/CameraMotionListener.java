@@ -1,4 +1,4 @@
-package androidx.media3.exoplayer.spherical;
+package com.fongmi.android.tv.exoplayer.spherical;
 
 public interface CameraMotionListener {
     void onCameraMotion(long timestampUs, float[] rotation);
