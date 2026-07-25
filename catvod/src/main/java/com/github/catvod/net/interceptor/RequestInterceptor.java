@@ -3,7 +3,7 @@ package com.github.catvod.net.interceptor;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.fongmi.android.tv.net.RustNet;
+import com.github.catvod.net.RustNet;
 
 import okhttp3.HttpUrl;
 import okhttp3.Interceptor;

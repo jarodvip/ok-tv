@@ -73,6 +73,15 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInit(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_github_catvod_net_RustNet_nativeInit(
+    env: JNIEnv,
+    _class: JClass,
+    rules_json: JString,
+) -> jstring {
+    Java_com_fongmi_android_tv_net_RustNet_nativeInit(env, _class, rules_json)
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeResolveProxy(
     mut env: JNIEnv,
     _class: JClass,
@@ -95,6 +104,15 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeResolveProxy
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_github_catvod_net_RustNet_nativeResolveProxy(
+    env: JNIEnv,
+    _class: JClass,
+    host: JString,
+) -> jstring {
+    Java_com_fongmi_android_tv_net_RustNet_nativeResolveProxy(env, _class, host)
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeShouldBlock(
     mut env: JNIEnv,
     _class: JClass,
@@ -109,6 +127,15 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeShouldBlock(
         Some(rules) => should_block(rules, &url_text),
         None => jni::sys::JNI_FALSE,
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_net_RustNet_nativeShouldBlock(
+    mut env: JNIEnv,
+    _class: JClass,
+    url: JString,
+) -> jboolean {
+    Java_com_fongmi_android_tv_net_RustNet_nativeShouldBlock(env, _class, url)
 }
 
 #[no_mangle]
@@ -145,6 +172,16 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInjectHeader
         },
         Err(err) => throw_and_empty_string(&mut env, NetError::InvalidRule(err.to_string())),
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_net_RustNet_nativeInjectHeaders(
+    mut env: JNIEnv,
+    _class: JClass,
+    host: JString,
+    headers_json: JString,
+) -> jstring {
+    Java_com_fongmi_android_tv_net_RustNet_nativeInjectHeaders(env, _class, host, headers_json)
 }
 
 fn resolve_proxy(rules: NetRules, host: &str) -> Option<ProxyRule> {

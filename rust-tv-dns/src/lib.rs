@@ -89,6 +89,15 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeInit(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_github_catvod_net_RustDns_nativeInit(
+    mut env: JNIEnv,
+    _class: JClass,
+    config_json: JString,
+) -> jstring {
+    Java_com_fongmi_android_tv_net_RustDns_nativeInit(env, _class, config_json)
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
     mut env: JNIEnv,
     _class: JClass,
@@ -107,6 +116,15 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
     };
 
     to_json_string(&mut env, &result).unwrap_or_else(|err| throw_and_empty_string(&mut env, err))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_net_RustDns_nativeResolveHost(
+    mut env: JNIEnv,
+    _class: JClass,
+    host: JString,
+) -> jstring {
+    Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(env, _class, host)
 }
 
 fn resolve_host(host: &str) -> Result<ResolveResult, DnsError> {

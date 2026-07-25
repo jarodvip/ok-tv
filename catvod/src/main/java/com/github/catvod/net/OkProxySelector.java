@@ -3,7 +3,7 @@ package com.github.catvod.net;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.fongmi.android.tv.net.RustNet;
+import com.github.catvod.net.RustNet;
 import com.github.catvod.utils.Util;
 
 import org.json.JSONException;
