@@ -347,43 +347,75 @@ fn ensure_vm() {
     JAVA_VM.get_or_init(|| Mutex::new(None));
 }
 
-macro_rules! dual_jni {
-    ($name:ident, $ret:ty, ($($arg:ident: $t:ty),*), $body:block) => {
-        #[no_mangle]
-        pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_$name(
-            mut env: JNIEnv, _class: JClass, $($arg: $t),*
-        ) -> $ret $body
-        #[no_mangle]
-        pub extern "system" fn Java_com_github_catvod_utils_RustUtil_$name(
-            mut env: JNIEnv, _class: JClass, $($arg: $t),*
-        ) -> $ret $body
-    };
-}
-
 // ===== Trans: s2t / t2s =====
 
-    #[no_mangle]
-dual_jni!(nativeInit, jstring, (), {
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeInit(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
     ensure_vm();
     if let Ok(vm) = env.get_java_vm() {
         let _ = JAVA_VM.get().unwrap().lock().replace(vm);
     }
     env.new_string("").unwrap().into_raw()
-});
+}
 
-    #[no_mangle]
-dual_jni!(nativeS2t, jstring, (text: JString), {
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeInit(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    ensure_vm();
+    if let Ok(vm) = env.get_java_vm() {
+        let _ = JAVA_VM.get().unwrap().lock().replace(vm);
+    }
+    env.new_string("").unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeS2t(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
     to_jstring(&mut env, &s2t_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
-});
+}
 
-    #[no_mangle]
-dual_jni!(nativeT2s, jstring, (text: JString), {
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeS2t(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
+    ensure_vm();
+    let s = jstring_to_str(&mut env, &text);
+    to_jstring(&mut env, &s2t_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeT2s(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
     to_jstring(&mut env, &t2s_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
-});
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeT2s(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
+    ensure_vm();
+    let s = jstring_to_str(&mut env, &text);
+    to_jstring(&mut env, &t2s_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
 
 // ===== Hex / MD5 =====
 
@@ -431,18 +463,40 @@ fn t2s_impl(text: &str) -> String {
 
 // ===== Util: hex2byte, md5 =====
 
-    #[no_mangle]
-dual_jni!(nativeHex2byte, jbyteArray, (hex: JString), {
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeHex2byte(
+    mut env: JNIEnv,
+    _class: JClass,
+    hex: JString,
+) -> jbyteArray {
     ensure_vm();
     let s = jstring_to_str(&mut env, &hex);
     if s.len() % 2 != 0 { return std::ptr::null_mut(); }
     let bytes: Vec<u8> = (0..s.len()).step_by(2)
         .filter_map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect();
     env.byte_array_from_slice(&bytes).map(|arr| arr.into_raw()).unwrap_or_else(|_| std::ptr::null_mut())
-});
+}
 
-    #[no_mangle]
-dual_jni!(nativeMd5, jstring, (text: JString), {
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeHex2byte(
+    mut env: JNIEnv,
+    _class: JClass,
+    hex: JString,
+) -> jbyteArray {
+    ensure_vm();
+    let s = jstring_to_str(&mut env, &hex);
+    if s.len() % 2 != 0 { return std::ptr::null_mut(); }
+    let bytes: Vec<u8> = (0..s.len()).step_by(2)
+        .filter_map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect();
+    env.byte_array_from_slice(&bytes).map(|arr| arr.into_raw()).unwrap_or_else(|_| std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeMd5(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
     if s.is_empty() { return env.new_string("").unwrap().into_raw(); }
@@ -452,12 +506,33 @@ dual_jni!(nativeMd5, jstring, (text: JString), {
         acc
     });
     to_jstring(&mut env, &hex).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
-});
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeMd5(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
+    ensure_vm();
+    let s = jstring_to_str(&mut env, &text);
+    if s.is_empty() { return env.new_string("").unwrap().into_raw(); }
+    let result = compute(s.as_bytes());
+    let hex = result.0.iter().fold(String::with_capacity(32), |mut acc, b| {
+        let _ = write!(acc, "{:02x}", b);
+        acc
+    });
+    to_jstring(&mut env, &hex).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
 
 // ===== Decoder: AES/CBC 解密 =====
 
-    #[no_mangle]
-dual_jni!(nativeCbcDecrypt, jstring, (data: JString), {
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeCbcDecrypt(
+    mut env: JNIEnv,
+    _class: JClass,
+    data: JString,
+) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &data);
     let lower = s.to_lowercase();
@@ -493,7 +568,50 @@ dual_jni!(nativeCbcDecrypt, jstring, (data: JString), {
 
     let result = String::from_utf8_lossy(&blocks).into_owned();
     to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
-};
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeCbcDecrypt(
+    mut env: JNIEnv,
+    _class: JClass,
+    data: JString,
+) -> jstring {
+    ensure_vm();
+    let s = jstring_to_str(&mut env, &data);
+    let lower = s.to_lowercase();
+    let key = match extract_key(&lower) { Some(k) => k, None => return env.new_string("").unwrap().into_raw() };
+    let iv = extract_iv(&lower);
+    let ct_hex = extract_ciphertext(&s);
+
+    let key_bytes = match hex::decode(&key) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
+    let iv_bytes = match hex::decode(&iv) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
+    let ciphertext = match hex::decode(&ct_hex) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
+
+    let cipher = match Aes128::new_from_slice(&key_bytes) { Ok(c) => c, Err(_) => return env.new_string("").unwrap().into_raw() };
+    let mut blocks = ciphertext.clone();
+
+    let mut prev = [0u8; 16];
+    prev.copy_from_slice(&iv_bytes);
+
+    for chunk in blocks.chunks_exact_mut(16) {
+        let mut block_arr: [u8; 16] = [0u8; 16];
+        block_arr.copy_from_slice(chunk);
+        let mut block = GenericArray::from(block_arr);
+        cipher.decrypt_block(&mut block);
+        for i in 0..16 {
+            chunk[i] = block[i] ^ prev[i];
+        }
+        prev.copy_from_slice(chunk);
+    }
+
+    let pad = match blocks.last() { Some(&b) => b, None => return env.new_string("").unwrap().into_raw() };
+    if pad == 0 || pad > 16 { return env.new_string("").unwrap().into_raw(); }
+    let pad_len = pad as usize;
+    blocks.truncate(blocks.len() - pad_len);
+
+    let result = String::from_utf8_lossy(&blocks).into_owned();
+    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
 
 fn extract_key(s: &str) -> Option<String> {
     let start = s.find("$#")? + 2;
@@ -516,8 +634,15 @@ fn extract_ciphertext(s: &str) -> String {
 
 // ===== Auth: Digest 认证 =====
 
-    #[no_mangle]
-dual_jni!(nativeDigest, jstring, (user_info: JString, header: JString, method: JString, uri: JString), {
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeDigest(
+    mut env: JNIEnv,
+    _class: JClass,
+    user_info: JString,
+    header: JString,
+    method: JString,
+    uri: JString,
+) -> jstring {
     ensure_vm();
     let ui = jstring_to_str(&mut env, &user_info);
     let hdr = jstring_to_str(&mut env, &header);
@@ -563,7 +688,63 @@ dual_jni!(nativeDigest, jstring, (user_info: JString, header: JString, method: J
 
     let result = format!("Digest {}", fields.join(", "));
     to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
-};
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeDigest(
+    mut env: JNIEnv,
+    _class: JClass,
+    user_info: JString,
+    header: JString,
+    method: JString,
+    uri: JString,
+) -> jstring {
+    ensure_vm();
+    let ui = jstring_to_str(&mut env, &user_info);
+    let hdr = jstring_to_str(&mut env, &header);
+    let mth = jstring_to_str(&mut env, &method);
+    let uri = jstring_to_str(&mut env, &uri);
+    if ui.is_empty() || hdr.is_empty() || mth.is_empty() || uri.is_empty() {
+        return env.new_string("").unwrap().into_raw();
+    }
+
+    let params = parse_digest_header(&hdr[7..]);
+    let parts: Vec<&str> = ui.splitn(2, ':').collect();
+    let username = parts[0];
+    let password = parts.get(1).copied().unwrap_or("");
+
+    let realm = params.get("realm").map(|s| s.as_str()).unwrap_or("");
+    let nonce = params.get("nonce").map(|s| s.as_str()).unwrap_or("");
+    let opaque = params.get("opaque").map(|s| s.as_str());
+    let qop = select_qop(params.get("qop").map(|s| s.as_str()).unwrap_or(""));
+    let nc = "00000001";
+    let cnonce = Uuid::new_v4().to_string().replace('-', "");
+
+    let ha1 = md5_hex(format!("{}:{}:{}", username, realm, password));
+    let ha2 = md5_hex(format!("{}:{}", mth, uri));
+    let response = if qop.is_empty() {
+        md5_hex(format!("{}:{}:{}", ha1, nonce, ha2))
+    } else {
+        md5_hex(format!("{}:{}:{}:{}:{}:{}", ha1, nonce, nc, cnonce, qop, ha2))
+    };
+
+    let mut fields = vec![
+        format!("username=\"{}\"", username),
+        format!("realm=\"{}\"", realm),
+        format!("nonce=\"{}\"", nonce),
+        format!("uri=\"{}\"", uri),
+    ];
+    if !qop.is_empty() {
+        fields.push(format!("cnonce=\"{}\"", cnonce));
+        fields.push(format!("nc={}", nc));
+        fields.push(format!("qop={}", qop));
+    }
+    fields.push(format!("response=\"{}\"", response));
+    if let Some(op) = opaque { fields.push(format!("opaque=\"{}\"", op)); }
+
+    let result = format!("Digest {}", fields.join(", "));
+    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+}
 
 fn parse_digest_header(header: &str) -> HashMap<String, String> {
     let re = Regex::new(r#"(\w+)=(?:"([^"]*)"|([^,\s"]+))"#).unwrap();
@@ -594,8 +775,13 @@ fn md5_hex(input: String) -> String {
 
 // ===== QueryUtil =====
 
-    #[no_mangle]
-dual_jni!(nativeQueryGet, jstring, (query: JString, key: JString), {
+#[no_mangle]
+pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeQueryGet(
+    mut env: JNIEnv,
+    _class: JClass,
+    query: JString,
+    key: JString,
+) -> jstring {
     ensure_vm();
     let q = jstring_to_str(&mut env, &query);
     let k = jstring_to_str(&mut env, &key);
@@ -607,7 +793,27 @@ dual_jni!(nativeQueryGet, jstring, (query: JString, key: JString), {
         }
     }
     env.new_string("").unwrap().into_raw()
-};
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeQueryGet(
+    mut env: JNIEnv,
+    _class: JClass,
+    query: JString,
+    key: JString,
+) -> jstring {
+    ensure_vm();
+    let q = jstring_to_str(&mut env, &query);
+    let k = jstring_to_str(&mut env, &key);
+    if q.is_empty() || k.is_empty() { return env.new_string("").unwrap().into_raw(); }
+    let prefix = format!("{}=", k);
+    for pair in q.split('&') {
+        if let Some(rest) = pair.strip_prefix(&prefix) {
+            return url_decode_jstring(&mut env, rest);
+        }
+    }
+    env.new_string("").unwrap().into_raw()
+}
 
 #[no_mangle]
 pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeQueryToMap(
