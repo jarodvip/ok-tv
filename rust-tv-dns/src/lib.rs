@@ -261,26 +261,18 @@ impl DohResponse {
 
 #[derive(Debug, Default)]
 struct HostCache {
-    max_ttl: u64,
     inner: std::collections::HashMap<String, (String, u64)>,
 }
 
 impl HostCache {
-    fn new(max_ttl: u64) -> Self {
-        Self { max_ttl, inner: std::collections::HashMap::new() }
+    fn new(_max_ttl: u64) -> Self {
+        Self { inner: std::collections::HashMap::new() }
     }
 
     fn get(&mut self, host: &str) -> Option<String> {
         let now = now_secs();
         self.inner.retain(|_, (_, expiry)| *expiry > now);
         self.inner.get(host).and_then(|(ip, expiry)| if *expiry > now { Some(ip.clone()) } else { None })
-    }
-
-    fn insert(&mut self, host: &str, ip: String) {
-        if self.max_ttl == 0 {
-            return;
-        }
-        self.inner.insert(host.into(), (ip, now_secs() + self.max_ttl));
     }
 }
 

@@ -4,24 +4,27 @@ use jni::JavaVM;
 use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::objects::JValueGen;
+use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::LazyLock;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
 static SERVER_CELL: LazyLock<Mutex<Option<RustServerHandle>>> = LazyLock::new(|| Mutex::new(None));
-#[allow(static_mut_refs)]
-static mut JAVA_VM: Option<JavaVM> = None;
+static JAVA_VM: OnceCell<Mutex<Option<Arc<JavaVM>>>> = OnceCell::new();
 
-#[allow(static_mut_refs)]
-fn java_vm_ref() -> Option<&'static JavaVM> {
-    unsafe { JAVA_VM.as_ref() }
+fn init_vm_state() {
+    JAVA_VM.get_or_init(|| Mutex::new(None));
+}
+
+fn vm_ref() -> Option<Arc<JavaVM>> {
+    JAVA_VM.get()?.lock().clone()
 }
 
 #[derive(Debug, Error)]
@@ -93,8 +96,9 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStart<
     port_start: jni::sys::jint,
     port_end: jni::sys::jint,
 ) -> jni::sys::jint {
-    unsafe {
-        JAVA_VM = env.get_java_vm().ok();
+    init_vm_state();
+    if let Some(vm) = env.get_java_vm().ok() {
+        let _ = JAVA_VM.get().unwrap().lock().replace(Arc::new(vm));
     }
 
     let runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -539,9 +543,9 @@ fn call_java_or_fallback(request: RequestView<'_>) -> ResponseView {
 }
 
 fn call_java_handler(path: &str, query: &str, body: &[u8]) -> Option<ResponseView> {
-    let vm = java_vm_ref()?;
+    let vm = vm_ref()?;
     {
-        let mut env = vm.attach_current_thread_as_daemon().ok()?;
+        let mut env = (&*vm).attach_current_thread_as_daemon().ok()?;
 
         let path = env.new_string(path).ok()?;
         let query = env.new_string(query).ok()?;
