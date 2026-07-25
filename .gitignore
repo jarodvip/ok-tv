@@ -9,4 +9,4 @@
 lib-*.aar
 /Release
 /docs
-/target
+target
