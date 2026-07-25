@@ -1,9 +1,21 @@
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Serialize;
 use std::collections::HashMap;
+
+static CATCHUP_TYPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup="(.?|.+?)""#).unwrap());
+static CATCHUP_SOURCE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup-source="(.?|.+?)""#).unwrap());
+static CATCHUP_REPLACE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup-replace="(.?|.+?)""#).unwrap());
+static TVG_CHNO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-chno="(.?|.+?)""#).unwrap());
+static TVG_LOGO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-logo="(.?|.+?)""#).unwrap());
+static TVG_NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-name="(.?|.+?)""#).unwrap());
+static TVG_ID_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-id="(.?|.+?)""#).unwrap());
+static GROUP_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"group-title="(.?|.+?)""#).unwrap());
+static NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#",(.+?)$"#).unwrap());
+static HTTP_UA_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"http-user-agent="(.?|.+?)""#).unwrap());
 
 #[derive(Serialize, Default)]
 struct RustChannel {
@@ -383,17 +395,6 @@ fn ensure_channel(group: &mut RustGroup, name: String) -> usize {
 }
 
 fn parse_m3u(text: &str) -> Vec<RustGroup> {
-    let catchup_type_re = Regex::new(r#"catchup="(.?|.+?)""#).unwrap();
-    let catchup_source_re = Regex::new(r#"catchup-source="(.?|.+?)""#).unwrap();
-    let catchup_replace_re = Regex::new(r#"catchup-replace="(.?|.+?)""#).unwrap();
-    let tvg_chno_re = Regex::new(r#"tvg-chno="(.?|.+?)""#).unwrap();
-    let tvg_logo_re = Regex::new(r#"tvg-logo="(.?|.+?)""#).unwrap();
-    let tvg_name_re = Regex::new(r#"tvg-name="(.?|.+?)""#).unwrap();
-    let tvg_id_re = Regex::new(r#"tvg-id="(.?|.+?)""#).unwrap();
-    let group_re = Regex::new(r#"group-title="(.?|.+?)""#).unwrap();
-    let name_re = Regex::new(r#",(.+?)$"#).unwrap();
-    let http_ua_re = Regex::new(r#"http-user-agent="(.?|.+?)""#).unwrap();
-
     let mut groups: Vec<RustGroup> = Vec::new();
     let mut global_catchup = RustCatchup::default();
     let mut setting = Setting::new();
@@ -410,30 +411,30 @@ fn parse_m3u(text: &str) -> Vec<RustGroup> {
         }
 
         if trimmed.starts_with("#EXTM3U") {
-            global_catchup.r#type = catchup_type_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            global_catchup.source = catchup_source_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            global_catchup.replace = catchup_replace_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            global_catchup.r#type = CATCHUP_TYPE_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            global_catchup.source = CATCHUP_SOURCE_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            global_catchup.replace = CATCHUP_REPLACE_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
             continue;
         }
 
         if trimmed.starts_with("#EXTINF:") {
-            let group_name = group_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            let name = name_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            let group_name = GROUP_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            let name = NAME_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
 
             let gi = ensure_group(&mut groups, group_name);
             let ci = ensure_channel(&mut groups[gi], name);
             let ch = &mut groups[gi].channel[ci];
 
-            ch.ua = http_ua_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            ch.tvg_name = tvg_name_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            ch.number = tvg_chno_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            ch.logo = tvg_logo_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            ch.tvg_id = tvg_id_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            ch.ua = HTTP_UA_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            ch.tvg_name = TVG_NAME_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            ch.number = TVG_CHNO_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            ch.logo = TVG_LOGO_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            ch.tvg_id = TVG_ID_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
 
             let mut unknown = RustCatchup::default();
-            unknown.r#type = catchup_type_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            unknown.source = catchup_source_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            unknown.replace = catchup_replace_re.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            unknown.r#type = CATCHUP_TYPE_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            unknown.source = CATCHUP_SOURCE_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            unknown.replace = CATCHUP_REPLACE_RE.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
             ch.catchup = RustCatchup::decide(unknown, &global_catchup);
             continue;
         }

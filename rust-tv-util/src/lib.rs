@@ -564,6 +564,10 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeCbcDecrypt
     let pad = match blocks.last() { Some(&b) => b, None => return env.new_string("").unwrap().into_raw() };
     if pad == 0 || pad > 16 { return env.new_string("").unwrap().into_raw(); }
     let pad_len = pad as usize;
+    if blocks.len() < pad_len { return env.new_string("").unwrap().into_raw(); }
+    if !blocks[blocks.len() - pad_len..].iter().all(|&b| b == pad) {
+        return env.new_string("").unwrap().into_raw();
+    }
     blocks.truncate(blocks.len() - pad_len);
 
     let result = String::from_utf8_lossy(&blocks).into_owned();
@@ -607,6 +611,10 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeCbcDecrypt(
     let pad = match blocks.last() { Some(&b) => b, None => return env.new_string("").unwrap().into_raw() };
     if pad == 0 || pad > 16 { return env.new_string("").unwrap().into_raw(); }
     let pad_len = pad as usize;
+    if blocks.len() < pad_len { return env.new_string("").unwrap().into_raw(); }
+    if !blocks[blocks.len() - pad_len..].iter().all(|&b| b == pad) {
+        return env.new_string("").unwrap().into_raw();
+    }
     blocks.truncate(blocks.len() - pad_len);
 
     let result = String::from_utf8_lossy(&blocks).into_owned();

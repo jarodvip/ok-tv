@@ -45,6 +45,7 @@ public class Local implements Process {
     private Response getFile(Map<String, String> headers, String path) {
         try {
             File file = Path.local(path.substring(5));
+            if (file == null) throw new FileNotFoundException();
             if (file.isDirectory()) return getFolder(file);
             if (file.isFile()) return getFile(headers, file, getMimeTypeForFile(path));
             throw new FileNotFoundException();

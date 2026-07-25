@@ -1,19 +1,23 @@
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jstring};
 use jni::{JNIEnv, JavaVM};
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use thiserror::Error;
 
-#[allow(static_mut_refs)]
-static mut JAVA_VM: Option<JavaVM> = None;
-#[allow(static_mut_refs)]
-static mut RULES: Option<NetRules> = None;
+static JAVA_VM: OnceCell<Mutex<Option<JavaVM>>> = OnceCell::new();
+static RULES: OnceCell<Mutex<Option<NetRules>>> = OnceCell::new();
 
-#[allow(static_mut_refs)]
-fn rules_ref() -> Option<&'static NetRules> {
-    unsafe { RULES.as_ref() }
+fn init_state() {
+    JAVA_VM.get_or_init(|| Mutex::new(None));
+    RULES.get_or_init(|| Mutex::new(None));
+}
+
+fn rules() -> Option<NetRules> {
+    RULES.get()?.lock().clone()
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -51,9 +55,8 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInit(
     _class: JClass,
     rules_json: JString,
 ) -> jstring {
-    unsafe {
-        JAVA_VM = env.get_java_vm().ok();
-    }
+    init_state();
+    *JAVA_VM.get().unwrap().lock() = env.get_java_vm().ok();
 
     let text: String = match env.get_string(&rules_json) {
         Ok(text) => text.into(),
@@ -62,9 +65,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInit(
 
     match serde_json::from_str::<NetRules>(&text) {
         Ok(rules) => {
-            unsafe {
-                RULES = Some(rules);
-            }
+            *RULES.get().unwrap().lock() = Some(rules);
             empty_string(&mut env)
         }
         Err(err) => throw_and_empty_string(&mut env, NetError::InvalidRule(err.to_string())),
@@ -82,7 +83,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeResolveProxy
         Err(err) => return throw_and_empty_string(&mut env, NetError::InvalidRule(err.to_string())),
     };
 
-    let rule = match rules_ref() {
+    let rule = match rules() {
         Some(rules) => resolve_proxy(rules, &host_text),
         None => None,
     };
@@ -104,7 +105,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeShouldBlock(
         Err(_) => return jni::sys::JNI_FALSE,
     };
 
-    match rules_ref() {
+    match rules() {
         Some(rules) => should_block(rules, &url_text),
         None => jni::sys::JNI_FALSE,
     }
@@ -132,7 +133,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInjectHeader
         Err(err) => return throw_and_empty_string(&mut env, NetError::InvalidRule(err.to_string())),
     };
 
-    match rules_ref() {
+    match rules() {
         Some(rules) => inject_headers(rules, &host_text, &mut headers),
         None => {}
     }
@@ -146,11 +147,11 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInjectHeader
     }
 }
 
-fn resolve_proxy(rules: &NetRules, host: &str) -> Option<ProxyRule> {
+fn resolve_proxy(rules: NetRules, host: &str) -> Option<ProxyRule> {
     rules.proxies.iter().find(|rule| host_matches(&rule.host, host)).cloned()
 }
 
-fn should_block(rules: &NetRules, url: &str) -> jboolean {
+fn should_block(rules: NetRules, url: &str) -> jboolean {
     let host = url.split("://")
         .nth(1)
         .and_then(|part| part.split('/').next())
@@ -165,7 +166,7 @@ fn should_block(rules: &NetRules, url: &str) -> jboolean {
     jni::sys::JNI_FALSE
 }
 
-fn inject_headers(rules: &NetRules, host: &str, headers: &mut HashMap<String, String>) {
+fn inject_headers(rules: NetRules, host: &str, headers: &mut HashMap<String, String>) {
     for rule in &rules.headers {
         if host_matches(&rule.host, host) {
             for (key, value) in &rule.headers {
@@ -238,18 +239,18 @@ mod tests {
 
         let json = serde_json::to_string(&rules).unwrap();
         let parsed: NetRules = serde_json::from_str(&json).unwrap();
-        assert!(should_block(&parsed, "https://ads.example.com/path") == jni::sys::JNI_TRUE);
-        assert!(should_block(&parsed, "https://tracker.example.com/x") == jni::sys::JNI_TRUE);
-        assert!(should_block(&parsed, "https://example.com/x") == jni::sys::JNI_FALSE);
+        assert!(should_block(parsed.clone(), "https://ads.example.com/path") == jni::sys::JNI_TRUE);
+        assert!(should_block(parsed.clone(), "https://tracker.example.com/x") == jni::sys::JNI_TRUE);
+        assert!(should_block(parsed.clone(), "https://example.com/x") == jni::sys::JNI_FALSE);
 
         let mut headers = HashMap::from([("Accept".into(), "*/*".into())]);
-        inject_headers(&parsed, "www.example.com", &mut headers);
+        inject_headers(parsed.clone(), "www.example.com", &mut headers);
         assert_eq!(headers.get("X-Proxy"), Some(&"rust".into()));
 
-        let proxy = resolve_proxy(&parsed, "www.example.com");
+        let proxy = resolve_proxy(parsed.clone(), "www.example.com");
         assert!(proxy.is_none());
 
-        let proxy = resolve_proxy(&parsed, "api.example.com");
+        let proxy = resolve_proxy(parsed, "api.example.com");
         assert_eq!(proxy.as_ref().map(|p| p.hostname.as_str()), Some("127.0.0.1"));
     }
 }

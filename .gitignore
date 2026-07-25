@@ -10,3 +10,4 @@ lib-*.aar
 /Release
 /docs
 target
+local.properties

@@ -182,6 +182,10 @@ fn resolve_with_doh_blocking(host: &str) -> Result<String, DnsError> {
         match client.get(request_url).header("Accept", "application/dns-json").send() {
             Ok(resp) if resp.status().is_success() => match resp.json::<DohResponse>() {
                 Ok(doh_response) => {
+                    if doh_response.status != 0 {
+                        last_err = Some(format!("doh status={}", doh_response.status));
+                        continue;
+                    }
                     if let Some(ip) = doh_response.first_ip().map(|ip| ip.to_string()) {
                         return Ok(ip);
                     }
@@ -238,6 +242,8 @@ fn to_json_string<T: Serialize>(env: &mut JNIEnv, value: &T) -> Result<jstring, 
 
 #[derive(Debug, Deserialize)]
 struct DohResponse {
+    #[serde(rename = "Status")]
+    status: i32,
     #[serde(rename = "Answer")]
     answer: Option<Vec<DohAnswer>>,
 }
@@ -279,7 +285,7 @@ impl HostCache {
 }
 
 fn now_secs() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
 mod urlencoding {

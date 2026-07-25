@@ -7,6 +7,7 @@ public final class RustNet {
     private static final String TAG = "RustNet";
     private static volatile boolean inited;
     private static volatile String proxyCache;
+    private static volatile String cachedHost;
 
     private RustNet() {}
 
@@ -62,9 +63,12 @@ public final class RustNet {
 
     public static String resolveProxyCached(String host) {
         if (host == null) return null;
-        if (proxyCache != null && proxyCache.contains(host)) return proxyCache;
+        if (proxyCache != null && host.equals(cachedHost)) return proxyCache;
         String resolved = resolveProxy(host);
-        if (resolved != null && !resolved.isEmpty()) proxyCache = resolved;
+        if (resolved != null && !resolved.isEmpty()) {
+            cachedHost = host;
+            proxyCache = resolved;
+        }
         return resolved;
     }
 

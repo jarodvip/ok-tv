@@ -72,8 +72,11 @@ public class FileUtil {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = (ZipEntry) entries.nextElement();
                 File out = new File(path, entry.getName());
-                if (entry.isDirectory()) out.mkdirs();
-                else Path.copy(zip.getInputStream(entry), out);
+                File resolved = out.getCanonicalFile();
+                File base = path.getCanonicalFile();
+                if (!resolved.getPath().startsWith(base.getPath())) continue;
+                if (entry.isDirectory()) resolved.mkdirs();
+                else Path.copy(zip.getInputStream(entry), resolved);
             }
         } catch (Exception e) {
             e.printStackTrace();

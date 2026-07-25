@@ -3,7 +3,6 @@ use axum::http::{Response, StatusCode, HeaderValue};
 use jni::JavaVM;
 use jni::JNIEnv;
 use jni::objects::{JClass, JString};
-use jni::sys::jstring;
 use jni::objects::JValueGen;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -93,19 +92,20 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStart<
     _class: JClass<'local>,
     port_start: jni::sys::jint,
     port_end: jni::sys::jint,
-) -> jstring {
+) -> jni::sys::jint {
     unsafe {
         JAVA_VM = env.get_java_vm().ok();
     }
 
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .map_err(server_error_to_string);
-
-    let runtime = match runtime {
+    {
         Ok(rt) => rt,
-        Err(err) => return throw_and_empty_string(&mut env, err),
+        Err(err) => {
+            let _ = env.throw(err.to_string());
+            return -1;
+        }
     };
 
     let config = ServerConfig {
@@ -116,11 +116,11 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStart<
     let result = runtime.block_on(async { start_server_once(config).await });
 
     match result {
-        Ok(handle) => match env.new_string(format!("{}", handle.port)) {
-            Ok(s) => s.into_raw(),
-            Err(err) => throw_and_empty_string(&mut env, ServerError::StartFailed(err.to_string())),
-        },
-        Err(err) => throw_and_empty_string(&mut env, err),
+        Ok(handle) => handle.port as jni::sys::jint,
+        Err(err) => {
+            let _ = env.throw(err.to_string());
+            -1
+        }
     }
 }
 
@@ -564,12 +564,3 @@ fn call_java_handler(path: &str, query: &str, body: &[u8]) -> Option<ResponseVie
     }
 }
 
-fn server_error_to_string(err: impl std::fmt::Display) -> ServerError {
-    ServerError::StartFailed(err.to_string())
-}
-
-fn throw_and_empty_string<'local>(env: &mut JNIEnv<'local>, err: impl std::fmt::Display) -> jstring {
-    let description = err.to_string();
-    let _ = env.throw(description.clone());
-    env.new_string("").unwrap().into_raw()
-}

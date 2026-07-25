@@ -135,9 +135,16 @@ public class Path {
     }
 
     public static File local(String path) {
-        path = path.replace("file:/", "");
-        File file = new File(root(), path);
-        return file.exists() ? file : new File(path);
+        try {
+            path = path.replace("file:/", "");
+            File file = new File(root(), path);
+            File resolved = file.getCanonicalFile();
+            File rootDir = root().getCanonicalFile();
+            if (!resolved.getPath().startsWith(rootDir.getPath())) return null;
+            return resolved;
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     public static String read(File file) {
