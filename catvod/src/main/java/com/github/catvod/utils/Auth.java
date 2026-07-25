@@ -3,6 +3,7 @@ package com.github.catvod.utils;
 import android.util.Base64;
 
 import com.github.catvod.utils.RustUtil;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
