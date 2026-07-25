@@ -9,7 +9,7 @@ import com.fongmi.android.tv.bean.Drm;
 import com.fongmi.android.tv.bean.Group;
 import com.fongmi.android.tv.bean.Live;
 import com.fongmi.android.tv.utils.UrlUtil;
-import com.github.catvod.net.OkHttp;
+import com.fongmi.android.tv.api.parser.RustParser;
 import com.github.catvod.utils.Json;
 
 import java.util.HashMap;
@@ -20,6 +20,47 @@ import java.util.regex.Pattern;
 public class LiveParser {
 
     private static final Pattern M3U = Pattern.compile("^(?!.*#genre#).*#EXTM3U.*", Pattern.MULTILINE);
+    private static boolean rustInited;
+
+    public static void init() {
+        rustInited = RustParser.init();
+    }
+
+    public static void text(Live live, String text) {
+        if (!live.getGroups().isEmpty()) return;
+        if (!rustInited) rustInited = RustParser.init();
+        if (rustInited) textRust(live, text);
+        else { textJava(live, text); apply(live); }
+    }
+
+    private static void textRust(Live live, String text) {
+        try {
+            live.getGroups().addAll(Group.arrayFrom(RustParser.parse(text)));
+        } catch (Exception e) {
+            e.printStackTrace();
+            textJava(live, text);
+            apply(live);
+            return;
+        }
+        extractEpg(live, text);
+        apply(live);
+    }
+
+    private static void textJava(Live live, String text) {
+        if (M3U.matcher(text).find()) m3u(live, text);
+        else txt(live, text);
+    }
+
+    private static void extractEpg(Live live, String text) {
+        for (String line : text.split("\n")) {
+            if (!line.startsWith("#EXTM3U")) continue;
+            if (live.getEpg().isEmpty()) live.setEpg(extract(line, TVG_URL).replace("\"", ""));
+            if (live.getEpg().isEmpty()) live.setEpg(extract(line, URL_TVG).replace("\"", ""));
+            if (live.getEpg().isEmpty()) live.setEpg(extract(line, "tvg-url=", "url-tvg="));
+            break;
+        }
+    }
+
     private static final Pattern HTTP_USER_AGENT = Pattern.compile(".*http-user-agent=\"(.?|.+?)\".*");
     private static final Pattern CATCHUP_REPLACE = Pattern.compile(".*catchup-replace=\"(.?|.+?)\".*");
     private static final Pattern CATCHUP_SOURCE = Pattern.compile(".*catchup-source=\"(.?|.+?)\".*");
@@ -47,6 +88,7 @@ public class LiveParser {
 
     public static void start(Live live) throws Exception {
         if (!live.getGroups().isEmpty()) return;
+        if (!rustInited) rustInited = RustParser.init();
         String text = getText(live);
         if (Json.isArray(text)) json(live, text);
         else text(live, text);
@@ -55,13 +97,6 @@ public class LiveParser {
     private static String getText(Live live) throws Exception {
         if (!live.getApi().isEmpty()) return live.spider().liveContent(live.getUrl());
         return OkHttp.string(UrlUtil.convert(live.getUrl()), live.getHeaders());
-    }
-
-    public static void text(Live live, String text) {
-        if (!live.getGroups().isEmpty()) return;
-        if (M3U.matcher(text).find()) m3u(live, text);
-        else txt(live, text);
-        apply(live);
     }
 
     private static void json(Live live, String text) {

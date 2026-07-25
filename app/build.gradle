@@ -101,9 +101,27 @@ android {
         }
     }
 
+    task buildTvUtilLib(type: Exec) {
+        def script = rootProject.file('rust-tv-util/build.sh')
+        if (script.exists()) {
+            commandLine 'bash', script.absolutePath
+        } else {
+            commandLine 'echo', 'skip rust-tv-util/build.sh'
+        }
+    }
+
+    task buildTvParseLib(type: Exec) {
+        def script = rootProject.file('rust-tv-parse/build.sh')
+        if (script.exists()) {
+            commandLine 'bash', script.absolutePath
+        } else {
+            commandLine 'echo', 'skip rust-tv-parse/build.sh'
+        }
+    }
+
     tasks.whenTaskAdded { task ->
         if (task.name == 'preBuild') {
-            task.dependsOn 'buildTvServerLib', 'buildTvNetLib', 'buildTvDnsLib'
+            task.dependsOn 'buildTvServerLib', 'buildTvNetLib', 'buildTvDnsLib', 'buildTvUtilLib', 'buildTvParseLib'
         }
     }
 
