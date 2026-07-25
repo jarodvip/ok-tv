@@ -5,6 +5,7 @@ import android.util.Base64;
 import androidx.annotation.NonNull;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.util.RustUtil;
 import com.github.catvod.utils.Util;
 import com.google.gson.annotations.SerializedName;
 
@@ -36,8 +37,8 @@ public class ClearKey {
         int flags = Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP;
         for (String s : line.split(",")) {
             String[] a = s.split(":");
-            String kid = Util.base64(Util.hex2byte(a[0].trim()), flags).replace("=", "");
-            String k = Util.base64(Util.hex2byte(a[1].trim()), flags).replace("=", "");
+            String kid = Util.base64(RustUtil.hex2byte(a[0].trim()), flags).replace("=", "");
+            String k = Util.base64(RustUtil.hex2byte(a[1].trim()), flags).replace("=", "");
             keys.add(new Keys(kid, k));
         }
     }
