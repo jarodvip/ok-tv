@@ -117,42 +117,53 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStart<
         let _ = JAVA_VM.get().unwrap().lock().replace(Arc::new(vm));
     }
 
-    let runtime = match tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(err) => {
-            let _ = env.throw(err.to_string());
-            return -1;
-        }
-    };
-
     let config = ServerConfig {
         port_start: port_start as u16,
         port_end: port_end as u16,
     };
 
-    // Keep runtime alive by storing it in the handle.
-    // If we drop rt here, tokio threads die and the server crashes.
-    let rt_clone = Arc::new(runtime);
-    let result = rt_clone.as_ref().block_on(async { start_server_once(config).await });
-
-    match result {
-        Ok(parts) => {
-            let server_handle = RustServerHandle {
-                port: parts.port,
-                shutdown: parts.shutdown,
-                _runtime: rt_clone,
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        std::thread::spawn(move || {
+            let runtime = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(err) => {
+                    return Err(ServerError::StartFailed(err.to_string()));
+                }
             };
-            *SERVER_CELL.lock() = Some(server_handle.clone());
-            server_handle.port as jni::sys::jint
-        },
-        Err(err) => {
+
+            let result = runtime.block_on(async { start_server_once(config).await });
+
+            match result {
+                Ok(parts) => {
+                    let server_handle = RustServerHandle {
+                        port: parts.port,
+                        shutdown: parts.shutdown,
+                        _runtime: Arc::new(runtime),
+                    };
+                    *SERVER_CELL.lock() = Some(server_handle.clone());
+                    Ok(server_handle.port)
+                },
+                Err(err) => Err(err),
+            }
+        }).join()
+    }));
+
+    let port = match result {
+        Ok(Ok(Ok(port))) => port as jni::sys::jint,
+        Ok(Ok(Err(err))) => {
             let _ = env.throw(err.to_string());
             -1
         }
-    }
+        _ => {
+            let _ = env.throw("rust server startup panicked".to_string());
+            -2
+        }
+    };
+
+    port
 }
 
 #[no_mangle]
@@ -203,7 +214,7 @@ async fn start_server_once(config: ServerConfig) -> Result<RustServerParts, Serv
             .route("/newFolder", axum::routing::any(new_folder_axum))
             .route("/delFile", axum::routing::any(del_file_axum))
             .route("/delFolder", axum::routing::any(del_folder_axum))
-            .route("/file/{*path}", axum::routing::any(file_axum))
+            .route("/*path", axum::routing::any(file_axum))
             .route("/upload", axum::routing::any(upload_axum))
             .fallback(fallback_axum)
     )

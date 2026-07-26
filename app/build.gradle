@@ -55,7 +55,7 @@ android {
     signingConfigs {
         release {
             if (localProps['storeFile']) {
-                storeFile file(localProps['storeFile'])
+                storeFile file(rootProject.file(localProps['storeFile']))
                 keyAlias localProps['keyAlias']
                 keyPassword localProps['storePassword']
                 storePassword localProps['storePassword']
@@ -182,7 +182,6 @@ dependencies {
     implementation libs.android.gif.drawable
     implementation libs.bundles.glide
     implementation libs.bundles.jupnp
-    implementation libs.customactivityoncrash
     implementation libs.eventbus
     implementation libs.flexbox
     implementation libs.rtmp.client

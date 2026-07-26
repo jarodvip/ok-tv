@@ -2,6 +2,10 @@
 -keep class androidx.leanback.widget.** { *; }
 -keep class com.fongmi.quickjs.method.** { *; }
 -keep class com.fongmi.android.tv.bean.** { *; }
+-keep class androidx.fragment.app.FragmentManager$FragmentLifecycleCallbacks { *; }
+-keep class androidx.fragment.app.FragmentManager { *; }
+-keep class android.support.v4.app.FragmentManager$FragmentLifecycleCallbacks { *; }
+-keep class android.support.v4.app.FragmentManager { *; }
 
 # Gson
 -keep class com.google.gson.** { *; }

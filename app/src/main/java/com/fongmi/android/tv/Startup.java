@@ -1,5 +1,6 @@
 package com.fongmi.android.tv;
 
+import android.app.Application;
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -20,14 +21,13 @@ import org.greenrobot.eventbus.EventBus;
 import java.util.Collections;
 import java.util.List;
 
-import cat.ereza.customactivityoncrash.config.CaocConfig;
-
 public class Startup implements Initializer<Void> {
 
     @NonNull
     @Override
     public Void create(@NonNull Context context) {
-        CaocConfig.Builder.create().trackActivities(true).backgroundMode(CaocConfig.BACKGROUND_MODE_SILENT).errorActivity(CrashActivity.class).apply();
+        CrashHandler.init();
+        CrashHandler.get().register((Application) context.getApplicationContext());
         Logger.addLogAdapter(new AndroidLogAdapter(PrettyFormatStrategy.newBuilder().methodCount(0).showThreadInfo(false).tag("TV").build()));
         EventBus.builder().installDefaultEventBus();
         OkHttp.dns().setDoh(Doh.objectFrom(Setting.getDoh()));
