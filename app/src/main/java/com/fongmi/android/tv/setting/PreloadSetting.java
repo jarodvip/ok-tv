@@ -22,20 +22,20 @@ public class PreloadSetting {
     }
 
     public static int getPreloadThreads() {
-        return Math.clamp(Prefers.getInt("preload_threads", MIN_THREADS), MIN_THREADS, MAX_THREADS);
+        return Math.max(MIN_THREADS, Math.min(MAX_THREADS, Prefers.getInt("preload_threads", MIN_THREADS)));
     }
 
     public static void putPreloadThreads(int threads) {
-        Prefers.put("preload_threads", Math.clamp(threads, MIN_THREADS, MAX_THREADS));
+        Prefers.put("preload_threads", Math.max(MIN_THREADS, Math.min(MAX_THREADS, threads)));
     }
 
     public static int getPreloadSizeMb() {
-        int size = Math.clamp(Prefers.getInt("preload_size", MIN_SIZE_MB), MIN_SIZE_MB, MAX_SIZE_MB);
-        return Math.clamp(MIN_SIZE_MB + (long) Math.round((float) (size - MIN_SIZE_MB) / STEP_SIZE_MB) * STEP_SIZE_MB, MIN_SIZE_MB, MAX_SIZE_MB);
+        int size = Math.max(MIN_SIZE_MB, Math.min(MAX_SIZE_MB, Prefers.getInt("preload_size", MIN_SIZE_MB)));
+        return (int) Math.max(MIN_SIZE_MB, Math.min(MAX_SIZE_MB, MIN_SIZE_MB + (long) Math.round((float) (size - MIN_SIZE_MB) / STEP_SIZE_MB) * STEP_SIZE_MB));
     }
 
     public static void putPreloadSizeMb(int size) {
-        Prefers.put("preload_size", Math.clamp(size, MIN_SIZE_MB, MAX_SIZE_MB));
+        Prefers.put("preload_size", Math.max(MIN_SIZE_MB, Math.min(MAX_SIZE_MB, size)));
     }
 
     public static long getPreloadSizeBytes() {
@@ -43,12 +43,12 @@ public class PreloadSetting {
     }
 
     public static int getPreloadTimeSeconds() {
-        int seconds = Math.clamp(Prefers.getInt("preload_time", MAX_TIME_SECONDS), MIN_TIME_SECONDS, MAX_TIME_SECONDS);
-        return Math.clamp(MIN_TIME_SECONDS + (long) Math.round((float) (seconds - MIN_TIME_SECONDS) / STEP_TIME_SECONDS) * STEP_TIME_SECONDS, MIN_TIME_SECONDS, MAX_TIME_SECONDS);
+        int seconds = Math.max(MIN_TIME_SECONDS, Math.min(MAX_TIME_SECONDS, Prefers.getInt("preload_time", MAX_TIME_SECONDS)));
+        return (int) Math.max(MIN_TIME_SECONDS, Math.min(MAX_TIME_SECONDS, MIN_TIME_SECONDS + (long) Math.round((float) (seconds - MIN_TIME_SECONDS) / STEP_TIME_SECONDS) * STEP_TIME_SECONDS));
     }
 
     public static void putPreloadTimeSeconds(int seconds) {
-        Prefers.put("preload_time", Math.clamp(seconds, MIN_TIME_SECONDS, MAX_TIME_SECONDS));
+        Prefers.put("preload_time", Math.max(MIN_TIME_SECONDS, Math.min(MAX_TIME_SECONDS, seconds)));
     }
 
     public static long getPreloadDurationMs() {

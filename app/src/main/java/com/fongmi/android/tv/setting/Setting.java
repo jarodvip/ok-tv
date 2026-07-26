@@ -52,19 +52,19 @@ public class Setting {
     }
 
     public static int getWall() {
-        return Math.clamp(Prefers.getInt("wall", 1), MIN_WALL, MAX_WALL);
+        return Math.max(MIN_WALL, Math.min(MAX_WALL, Prefers.getInt("wall", 1)));
     }
 
     public static void putWall(int wall) {
-        Prefers.put("wall", Math.clamp(wall, MIN_WALL, MAX_WALL));
+        Prefers.put("wall", Math.max(MIN_WALL, Math.min(MAX_WALL, wall)));
     }
 
     public static int getWallType() {
-        return Math.clamp(Prefers.getInt("wall_type", 0), MIN_WALL_TYPE, MAX_WALL_TYPE);
+        return Math.max(MIN_WALL_TYPE, Math.min(MAX_WALL_TYPE, Prefers.getInt("wall_type", 0)));
     }
 
     public static void putWallType(int type) {
-        Prefers.put("wall_type", Math.clamp(type, MIN_WALL_TYPE, MAX_WALL_TYPE));
+        Prefers.put("wall_type", Math.max(MIN_WALL_TYPE, Math.min(MAX_WALL_TYPE, type)));
     }
 
     public static int getThemeColor() {
@@ -90,19 +90,19 @@ public class Setting {
     }
 
     public static int getSiteMode() {
-        return Math.clamp(Prefers.getInt("site_mode"), MIN_SITE_MODE, MAX_SITE_MODE);
+        return Math.max(MIN_SITE_MODE, Math.min(MAX_SITE_MODE, Prefers.getInt("site_mode")));
     }
 
     public static void putSiteMode(int mode) {
-        Prefers.put("site_mode", Math.clamp(mode, MIN_SITE_MODE, MAX_SITE_MODE));
+        Prefers.put("site_mode", Math.max(MIN_SITE_MODE, Math.min(MAX_SITE_MODE, mode)));
     }
 
     public static int getSyncMode() {
-        return Math.clamp(Prefers.getInt("sync_mode"), MIN_SYNC_MODE, MAX_SYNC_MODE);
+        return Math.max(MIN_SYNC_MODE, Math.min(MAX_SYNC_MODE, Prefers.getInt("sync_mode")));
     }
 
     public static void putSyncMode(int mode) {
-        Prefers.put("sync_mode", Math.clamp(mode, MIN_SYNC_MODE, MAX_SYNC_MODE));
+        Prefers.put("sync_mode", Math.max(MIN_SYNC_MODE, Math.min(MAX_SYNC_MODE, mode)));
     }
 
     public static boolean isIncognito() {

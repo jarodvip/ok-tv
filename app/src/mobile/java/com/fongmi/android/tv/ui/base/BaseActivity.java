@@ -36,10 +36,10 @@ public abstract class BaseActivity extends AppCompatActivity {
         enableDynamicColor();
         super.onCreate(savedInstanceState);
         setContentView(getBinding().getRoot());
-        EventBus.getDefault().register(this);
         initView(savedInstanceState);
         setBackCallback();
         initEvent();
+        EventBus.getDefault().register(this);
     }
 
     @Override

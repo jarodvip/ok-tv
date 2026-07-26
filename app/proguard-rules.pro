@@ -1,11 +1,14 @@
+# Disable R8 optimizations to avoid null-pointer crashes on API 28
+-dontoptimize
+
+# Media3 — prevent obfuscation of all Media3 classes
+-keep class androidx.media3.** { *; }
+-keep interface androidx.media3.** { *; }
+
 # TV
 -keep class androidx.leanback.widget.** { *; }
 -keep class com.fongmi.quickjs.method.** { *; }
 -keep class com.fongmi.android.tv.bean.** { *; }
--keep class androidx.fragment.app.FragmentManager$FragmentLifecycleCallbacks { *; }
--keep class androidx.fragment.app.FragmentManager { *; }
--keep class android.support.v4.app.FragmentManager$FragmentLifecycleCallbacks { *; }
--keep class android.support.v4.app.FragmentManager { *; }
 
 # Gson
 -keep class com.google.gson.** { *; }
@@ -93,3 +96,12 @@
 -keep class com.fongmi.android.tv.server.RustServerCallback {
     public static native ** onHandle(...);
 }
+
+# Leanback presenters — used as Class<?> keys in ArrayObjectAdapter.addPresenter()
+-keep class com.fongmi.android.tv.ui.presenter.** { *; }
+-keep class com.fongmi.android.tv.ui.adapter.** { *; }
+-keep class com.fongmi.android.tv.ui.custom.** { *; }
+-keep class com.fongmi.android.tv.ui.fragment.** { *; }
+
+# Dialogs — used via reflection or indirect references
+-keep class com.fongmi.android.tv.ui.dialog.** { *; }

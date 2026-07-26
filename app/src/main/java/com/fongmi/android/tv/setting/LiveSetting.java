@@ -37,10 +37,10 @@ public class LiveSetting {
     }
 
     public static int getScale() {
-        return Math.clamp(Prefers.getInt("scale_live", PlayerSetting.getScale()), PlayerSetting.MIN_SCALE, PlayerSetting.MAX_SCALE);
+        return Math.max(PlayerSetting.MIN_SCALE, Math.min(PlayerSetting.MAX_SCALE, Prefers.getInt("scale_live", PlayerSetting.getScale())));
     }
 
     public static void putScale(int scale) {
-        Prefers.put("scale_live", Math.clamp(scale, PlayerSetting.MIN_SCALE, PlayerSetting.MAX_SCALE));
+        Prefers.put("scale_live", Math.max(PlayerSetting.MIN_SCALE, Math.min(PlayerSetting.MAX_SCALE, scale)));
     }
 }

@@ -213,7 +213,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public String getPositionTime(long delta) {
-        return Util.timeMs(Math.clamp(getPosition() + delta, 0, Math.max(0, getDuration())));
+        return Util.timeMs(Math.max(0, Math.min(Math.max(0, getDuration()), getPosition() + delta)));
     }
 
     public long getDuration() {
@@ -263,11 +263,11 @@ public class PlayerManager implements ParseCallback {
     }
 
     public String addSpeed(float value) {
-        return setSpeed(Math.clamp(getSpeed() + value, 0.25f, 5.0f));
+        return setSpeed(Math.max(0.25f, Math.min(5.0f, getSpeed() + value)));
     }
 
     public String subSpeed(float value) {
-        return setSpeed(Math.clamp(getSpeed() - value, 0.25f, 5.0f));
+        return setSpeed(Math.max(0.25f, Math.min(5.0f, getSpeed() - value)));
     }
 
     public String toggleSpeed() {

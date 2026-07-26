@@ -78,7 +78,7 @@ public class CustomEditText extends TextInputEditText {
     }
 
     private void scrollByLine(int direction) {
-        scrollTo(getScrollX(), Math.clamp(getScrollY() + (long) direction * getLineHeight(), 0, getScrollRange()));
+        scrollTo(getScrollX(), (int) Math.max(0, Math.min(getScrollRange(), getScrollY() + (long) direction * getLineHeight())));
     }
 
     private int getScrollRange() {

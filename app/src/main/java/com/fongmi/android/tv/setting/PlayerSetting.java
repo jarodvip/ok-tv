@@ -22,11 +22,11 @@ public class PlayerSetting {
     private static final float MAX_SPEED = 5.0f;
 
     public static int getEngine() {
-        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_MPV);
+        return Math.max(ENGINE_EXO, Math.min(ENGINE_MPV, Prefers.getInt("player_engine", ENGINE_EXO)));
     }
 
     public static void putEngine(int engine) {
-        Prefers.put("player_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_MPV));
+        Prefers.put("player_engine", Math.max(ENGINE_EXO, Math.min(ENGINE_MPV, engine)));
         if (!isMpv() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
     }
 
@@ -51,11 +51,11 @@ public class PlayerSetting {
     }
 
     public static int getRender() {
-        return Math.clamp(Prefers.getInt("render", RENDER_SURFACE), RENDER_SURFACE, RENDER_TEXTURE);
+        return Math.max(RENDER_SURFACE, Math.min(RENDER_TEXTURE, Prefers.getInt("render", RENDER_SURFACE)));
     }
 
     public static void putRender(int render) {
-        Prefers.put("render", Math.clamp(render, RENDER_SURFACE, RENDER_TEXTURE));
+        Prefers.put("render", Math.max(RENDER_SURFACE, Math.min(RENDER_TEXTURE, render)));
         if (!isMpv() && isTunnel() && getRender() == RENDER_TEXTURE) Prefers.put("tunnel", false);
     }
 
@@ -73,27 +73,27 @@ public class PlayerSetting {
     }
 
     public static int getSize() {
-        return Math.clamp(Prefers.getInt("size", 2), MIN_SIZE, MAX_SIZE);
+        return Math.max(MIN_SIZE, Math.min(MAX_SIZE, Prefers.getInt("size", 2)));
     }
 
     public static void putSize(int size) {
-        Prefers.put("size", Math.clamp(size, MIN_SIZE, MAX_SIZE));
+        Prefers.put("size", Math.max(MIN_SIZE, Math.min(MAX_SIZE, size)));
     }
 
     public static int getScale() {
-        return Math.clamp(Prefers.getInt("scale"), MIN_SCALE, MAX_SCALE);
+        return Math.max(MIN_SCALE, Math.min(MAX_SCALE, Prefers.getInt("scale")));
     }
 
     public static void putScale(int scale) {
-        Prefers.put("scale", Math.clamp(scale, MIN_SCALE, MAX_SCALE));
+        Prefers.put("scale", Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale)));
     }
 
     public static int getBackground() {
-        return Math.clamp(Prefers.getInt("background", 2), MIN_BACKGROUND, MAX_BACKGROUND);
+        return Math.max(MIN_BACKGROUND, Math.min(MAX_BACKGROUND, Prefers.getInt("background", 2)));
     }
 
     public static void putBackground(int background) {
-        Prefers.put("background", Math.clamp(background, MIN_BACKGROUND, MAX_BACKGROUND));
+        Prefers.put("background", Math.max(MIN_BACKGROUND, Math.min(MAX_BACKGROUND, background)));
     }
 
     public static boolean isBackgroundOff() {
@@ -109,11 +109,11 @@ public class PlayerSetting {
     }
 
     public static float getSpeed() {
-        return Math.clamp(Prefers.getFloat("speed", 3), MIN_SPEED, MAX_SPEED);
+        return Math.max(MIN_SPEED, Math.min(MAX_SPEED, Prefers.getFloat("speed", 3)));
     }
 
     public static void putSpeed(float speed) {
-        Prefers.put("speed", Math.clamp(speed, MIN_SPEED, MAX_SPEED));
+        Prefers.put("speed", Math.max(MIN_SPEED, Math.min(MAX_SPEED, speed)));
     }
 
     public static boolean isCaption() {

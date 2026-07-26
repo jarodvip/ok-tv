@@ -3,7 +3,6 @@ package com.fongmi.android.tv.ui.base;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 import android.content.res.Configuration;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
@@ -22,8 +21,6 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
-import me.jessyan.autosize.AutoSizeCompat;
-
 public abstract class BaseActivity extends AppCompatActivity {
 
     protected abstract ViewBinding getBinding();
@@ -32,11 +29,11 @@ public abstract class BaseActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(getBinding().getRoot());
-        EventBus.getDefault().register(this);
         initView(savedInstanceState);
         Util.hideSystemUI(this);
         setBackCallback();
         initEvent();
+        EventBus.getDefault().register(this);
     }
 
     @Override
@@ -81,22 +78,8 @@ public abstract class BaseActivity extends AppCompatActivity {
         });
     }
 
-    private Resources hackResources(Resources resources) {
-        try {
-            AutoSizeCompat.autoConvertDensityOfGlobal(resources);
-            return resources;
-        } catch (Exception ignored) {
-            return resources;
-        }
-    }
-
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onSubscribe(Object o) {
-    }
-
-    @Override
-    public Resources getResources() {
-        return hackResources(super.getResources());
     }
 
     @Override
