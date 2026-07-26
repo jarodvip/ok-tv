@@ -1,13 +1,16 @@
 # tv-dns
 
-Rust DNS/DoH 辅助模块，用于 ok-tv 网络层渐进式重构。
+Rust DNS/DoH 模块，通过 JNI 为 Java 层提供 DNS over HTTPS 解析能力。
 
-## 当前范围
-- hosts 规则匹配
+## 已完成
+- Hosts 规则匹配（含通配符）
 - 命中结果缓存
-- DoH A 记录查询
+- DoH A 记录查询（Bootstrap IP 支持）
+- 通过 JNI 接入 Java 网络层
 
-## 下一步
-- 接入 OkDns
-- 增加更多 DoH 后端与超时控制
-- 增加 IPv6 / 多地址回退策略
+## 构建
+```bash
+bash build.sh
+```
+
+产物为 `libtv_dns.so`，自动复制到 `app/src/main/jniLibs/`。

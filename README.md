@@ -39,7 +39,19 @@ TV/
 ├── catvod/         爬蟲抽象層（Spider 介面、OkHttp 網路棧）
 ├── quickjs/        QuickJS JavaScript 引擎
 ├── chaquo/         Chaquopy Python 引擎
+├── rust-tv-dns/    Rust DNS/DoH 模組
+├── rust-tv-net/    Rust 網路規則引擎
+├── rust-tv-util/   Rust 工具函式（AES、MD5、Base64 等）
+├── rust-tv-parse/  Rust URL 解析引擎
+├── rust-tv-server/ Rust 本地 HTTP 服務
 ```
+
+Java 層透過 JNI 調用 Rust 原生函式，實現以下能力：
+- DNS over HTTPS 解析（`rust-tv-dns`）
+- 代理規則匹配、Hosts 覆蓋、廣告攔截、請求頭注入（`rust-tv-net`）
+- 本地 HTTP 伺服器（`rust-tv-server`）
+- 編解碼工具（AES/CBC、MD5、Hex、Base64 等，`rust-tv-util`）
+- URL 規則解析（`rust-tv-parse`）
 
 `app/src/main/` 為兩個版本共用的業務邏輯，`app/src/leanback/` 與 `app/src/mobile/` 各自實作對應 UI。
 

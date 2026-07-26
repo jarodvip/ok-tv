@@ -1,18 +1,17 @@
 # tv-net
 
-Rust 网络规则引擎原型，用于 ok-tv 下一阶段重构。
+Rust 网络规则引擎，通过 JNI 为 Java 层提供代理、Hosts、广告拦截和请求头注入能力。
 
-## 当前范围
-- 代理规则匹配
+## 已完成
+- 代理规则匹配（HTTP/HTTPS/SOCKS4/SOCKS5）
 - Hosts / 通配符匹配
-- 广告拦截
-- 请求头注入
+- 广告拦截（`ads` 黑名单）
+- 请求头注入（CORS 等）
+- 通过 JNI 接入 `RustNet`，配置热更新时重置
 
-## 当前进展
-- 已实现代理/Hosts/广告拦截/请求头注入
-- 已通过 JNI 接入 `RustNet` 并在配置热更新时重置
+## 构建
+```bash
+bash build.sh
+```
 
-## 下一步
-- 增加 DNS / DoH 缓存
-- 增加更完整的规则合并逻辑
-- 扩展 OkHttp 调用链覆盖范围
+产物为 `libtv_net.so`，自动复制到 `app/src/main/jniLibs/`。
