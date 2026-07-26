@@ -6,16 +6,16 @@ use regex::Regex;
 use serde::Serialize;
 use std::collections::HashMap;
 
-static CATCHUP_TYPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup="(.?|.+?)""#).unwrap());
-static CATCHUP_SOURCE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup-source="(.?|.+?)""#).unwrap());
-static CATCHUP_REPLACE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup-replace="(.?|.+?)""#).unwrap());
-static TVG_CHNO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-chno="(.?|.+?)""#).unwrap());
-static TVG_LOGO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-logo="(.?|.+?)""#).unwrap());
-static TVG_NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-name="(.?|.+?)""#).unwrap());
-static TVG_ID_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-id="(.?|.+?)""#).unwrap());
-static GROUP_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"group-title="(.?|.+?)""#).unwrap());
-static NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#",(.+?)$"#).unwrap());
-static HTTP_UA_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"http-user-agent="(.?|.+?)""#).unwrap());
+static CATCHUP_TYPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup="([^"]*)""#).unwrap());
+static CATCHUP_SOURCE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup-source="([^"]*)""#).unwrap());
+static CATCHUP_REPLACE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"catchup-replace="([^"]*)""#).unwrap());
+static TVG_CHNO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-chno="([^"]*)""#).unwrap());
+static TVG_LOGO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-logo="([^"]*)""#).unwrap());
+static TVG_NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-name="([^"]*)""#).unwrap());
+static TVG_ID_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"tvg-id="([^"]*)""#).unwrap());
+static GROUP_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"group-title="([^"]*)""#).unwrap());
+static NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#",([^,]*)$"#).unwrap());
+static HTTP_UA_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"http-user-agent="([^"]*)""#).unwrap());
 
 #[derive(Serialize, Default)]
 struct RustChannel {
@@ -352,6 +352,14 @@ impl Setting {
 }
 
 fn extract_after(line: &str, keyword: &str) -> Option<String> {
+    // Try splitting on param separators first (safe against substring matching)
+    for param in line.split(['&', ';']) {
+        let param = param.trim();
+        if param.starts_with(&format!("{keyword}=")) {
+            return Some(param[keyword.len() + 1..].trim().trim_matches('"').to_string());
+        }
+    }
+    // Fallback: search anywhere in line (for full-line formats like "http-user-agent=...")
     line.find(keyword)
         .map(|i| line[i + keyword.len()..].trim().trim_matches('"').to_string())
 }
@@ -440,6 +448,7 @@ fn parse_m3u(text: &str) -> Vec<RustGroup> {
         }
 
         if trimmed.starts_with("#") || !trimmed.contains("://") {
+            setting.clear();
             continue;
         }
 
@@ -449,7 +458,7 @@ fn parse_m3u(text: &str) -> Vec<RustGroup> {
                 if let Some(pipe_pos) = trimmed.find('|') {
                     let url = trimmed[..pipe_pos].trim();
                     let header_str = &trimmed[pipe_pos + 1..];
-                    for param in header_str.split('&') {
+                    for param in header_str.split('&').take(20) {
                         if param.contains('=') {
                             let kv: Vec<&str> = param.splitn(2, '=').collect();
                             if kv.len() == 2 {
@@ -547,7 +556,7 @@ fn parse_txt(text: &str) -> Vec<RustGroup> {
             }
             if let Some(pipe_pos) = url.find('|') {
                 let header_str = &url[pipe_pos + 1..];
-                for param in header_str.split('&') {
+                for param in header_str.split('&').take(20) {
                     if param.contains('=') {
                         let kv: Vec<&str> = param.splitn(2, '=').collect();
                         if kv.len() == 2 {
@@ -564,6 +573,7 @@ fn parse_txt(text: &str) -> Vec<RustGroup> {
             }
         }
         setting.copy_to_channel(channel);
+        setting.clear();
     }
 
     groups
@@ -591,6 +601,9 @@ pub extern "system" fn Java_com_fongmi_android_tv_api_parser_RustParser_nativePa
 
 fn parse_impl(env: &mut JNIEnv, text: JString) -> Result<jstring, Box<dyn std::error::Error>> {
     let text_str: String = env.get_string(&text)?.into();
+    if text_str.len() > 10 * 1024 * 1024 {
+        return Ok(env.new_string("[]")?.into_raw());
+    }
     let groups = if text_str.contains("#EXTM3U") {
         parse_m3u(&text_str)
     } else {
@@ -677,5 +690,48 @@ http://example.com/ch2.m3u8"#;
         let groups = parse_m3u(input);
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].channel.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_setting_branches() {
+        // Test ua parsing via different formats
+        let input = r#"#EXTM3U
+#EXTVLCOPT:http-user-agent=CustomAgent
+#EXTINF:-1 group-title="test",Channel1
+http://example.com/ch1.m3u8"#;
+        let groups = parse_m3u(input);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].channel[0].ua, "CustomAgent");
+    }
+
+    #[test]
+    fn test_parse_txt_setting_branches() {
+        // Test Setting::check branches via txt parser (format, origin, referer are set via Setting)
+        let input = r#"test,#genre#
+Channel1,http://example.com/ch1.m3u8|format=hls&origin=http://origin.com&referer=http://referer.com"#;
+        let groups = parse_txt(input);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].name, "test");
+        assert_eq!(groups[0].channel.len(), 1);
+        let ch = &groups[0].channel[0];
+        assert!(ch.header.contains_key("format"));
+        assert!(ch.header.contains_key("origin"));
+        assert!(ch.header.contains_key("referer"));
+    }
+
+    #[test]
+    fn test_parse_kodi_drm_settings() {
+        let input = r#"#EXTM3U
+#KODIPROP:inputstream.adaptive.license_key=http://license.server
+#KODIPROP:inputstream.adaptive.license_type=org.w3.clearkey
+#EXTINF:-1 group-title="drm",DRMChannel
+http://example.com/drm.m3u8"#;
+        let groups = parse_m3u(input);
+        assert_eq!(groups.len(), 1);
+        let ch = &groups[0].channel[0];
+        assert!(ch.drm.is_some());
+        let drm = ch.drm.as_ref().unwrap();
+        assert_eq!(drm.key, "http://license.server");
+        assert_eq!(drm.r#type, "org.w3.clearkey");
     }
 }

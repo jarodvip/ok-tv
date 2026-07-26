@@ -9,11 +9,13 @@ use thiserror::Error;
 static JAVA_VM: OnceCell<Mutex<Option<JavaVM>>> = OnceCell::new();
 static DNS_CONFIG: OnceCell<Mutex<Option<DnsConfig>>> = OnceCell::new();
 static DNS_CACHE: OnceCell<Mutex<Option<HostCache>>> = OnceCell::new();
+static DNS_CLIENT: OnceCell<Mutex<Option<reqwest::blocking::Client>>> = OnceCell::new();
 
 fn init_state() {
     JAVA_VM.get_or_init(|| Mutex::new(None));
     DNS_CONFIG.get_or_init(|| Mutex::new(None));
     DNS_CACHE.get_or_init(|| Mutex::new(None));
+    DNS_CLIENT.get_or_init(|| Mutex::new(None));
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -82,6 +84,12 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeInit(
             }
             let _ = DNS_CONFIG.get().unwrap().lock().replace(config);
             let _ = DNS_CACHE.get().unwrap().lock().replace(HostCache::new(ttl_secs));
+            let _ = DNS_CLIENT.get().unwrap().lock().replace(
+                reqwest::blocking::Client::builder()
+                    .user_agent("ok-tv-dns/0.1")
+                    .timeout(std::time::Duration::from_secs(3))
+                    .build()
+                    .expect("failed to build DNS client"));
             empty_string(&mut env)
         }
         Err(err) => throw_and_empty_string(&mut env, DnsError::InvalidConfig(err.to_string())),
@@ -90,7 +98,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeInit(
 
 #[no_mangle]
 pub extern "system" fn Java_com_github_catvod_net_RustDns_nativeInit(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     config_json: JString,
 ) -> jstring {
@@ -120,7 +128,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
 
 #[no_mangle]
 pub extern "system" fn Java_com_github_catvod_net_RustDns_nativeResolveHost(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     host: JString,
 ) -> jstring {
@@ -148,7 +156,13 @@ fn resolve_host(host: &str) -> Result<ResolveResult, DnsError> {
     }
 
     match resolve_with_doh_blocking(host) {
-        Ok(ip) => Ok(ResolveResult { ip, source: "doh".into(), ttl_secs: config.ttl_secs }),
+        Ok(ip) => {
+            let mut cache_guard = DNS_CACHE.get().unwrap().lock();
+            if let Some(cache) = cache_guard.as_mut() {
+                cache.insert(host.to_string(), ip.clone(), config.ttl_secs);
+            }
+            Ok(ResolveResult { ip, source: "doh".into(), ttl_secs: config.ttl_secs })
+        }
         Err(err) => {
             eprintln!("rust dns doh failed for {}: {}", host, err);
             Ok(ResolveResult { ip: host.into(), source: "passthrough".into(), ttl_secs: 0 })
@@ -165,11 +179,41 @@ fn match_host_rule(config: &DnsConfig, host: &str) -> Option<HostRule> {
     None
 }
 
+fn is_safe_doh_url(url: &url::Url) -> bool {
+    url.scheme() == "https" && !is_private_host(url.host_str())
+}
+
+fn is_private_host(host: Option<&str>) -> bool {
+    let Some(host) = host else { return true; };
+    // Reject cloud metadata, localhost, link-local, private ranges
+    if host == "localhost" || host.ends_with(".localhost") { return true; }
+    if host == "::1" || host.starts_with("fe80:") || host.starts_with("::ffff:") { return true; }
+    // 10.x.x.x
+    if host.starts_with("10.") { return true; }
+    // 172.16-31.x.x
+    if let Some(rest) = host.strip_prefix("172.") {
+        if let Ok(octet) = rest.split('.').next().unwrap_or("").parse::<u16>() {
+            if (16..=31).contains(&octet) { return true; }
+        }
+    }
+    // 192.168.x.x
+    if host.starts_with("192.168.") { return true; }
+    // 169.254.x.x (link-local)
+    if host.starts_with("169.254.") { return true; }
+    // 127.x.x.x
+    if host.starts_with("127.") { return true; }
+    false
+}
+
 fn resolve_with_doh_blocking(host: &str) -> Result<String, DnsError> {
     let urls = {
         let guard = DNS_CONFIG.get().unwrap().lock();
         match guard.as_ref() {
-            Some(c) => c.doh.iter().filter(|item| !item.url.is_empty()).filter_map(|item| url::Url::parse(&item.url).ok()).collect::<Vec<_>>(),
+            Some(c) => c.doh.iter()
+                .filter(|item| !item.url.is_empty())
+                .filter_map(|item| url::Url::parse(&item.url).ok())
+                .filter(|u| is_safe_doh_url(u))
+                .collect::<Vec<_>>(),
             None => return Err(DnsError::DohRequest("no config".into())),
         }
     };
@@ -178,13 +222,12 @@ fn resolve_with_doh_blocking(host: &str) -> Result<String, DnsError> {
         return Err(DnsError::DohRequest("no doh".into()));
     }
 
-    let client = match reqwest::blocking::Client::builder()
-        .user_agent("ok-tv-dns/0.1")
-        .timeout(std::time::Duration::from_secs(3))
-        .build()
-    {
-        Ok(c) => c,
-        Err(err) => return Err(DnsError::DohRequest(err.to_string())),
+    let client = {
+        let guard = DNS_CLIENT.get().unwrap().lock();
+        match guard.as_ref() {
+            Some(c) => c.clone(),
+            None => return Err(DnsError::DohRequest("no client".into())),
+        }
     };
 
     let mut last_err = None;
@@ -227,13 +270,13 @@ fn wildmatch_match(pattern: &str, host: &str) -> bool {
     if pattern.is_empty() {
         return false;
     }
-    let normalized_pattern = pattern.trim().trim_start_matches('.');
+    let normalized_pattern = pattern.trim().trim_start_matches('.').to_lowercase();
     let normalized_host = host.trim().to_lowercase();
 
     if normalized_pattern == normalized_host {
         return true;
     }
-    if normalized_host.ends_with(&(".".to_string() + normalized_pattern)) {
+    if normalized_host.ends_with(&(".".to_string() + &normalized_pattern)) {
         return true;
     }
     if let Some(stripped) = normalized_pattern.strip_prefix("*.") {
@@ -268,13 +311,24 @@ struct DohResponse {
 
 #[derive(Debug, Deserialize)]
 struct DohAnswer {
+    #[serde(default)]
     data: String,
 }
 
 impl DohResponse {
     fn first_ip(&self) -> Option<&String> {
-        self.answer.as_ref()?.first().map(|item| &item.data)
+        self.answer.as_ref()?.first().filter(|a| is_valid_ip(&a.data)).map(|a| &a.data)
     }
+}
+
+fn is_valid_ip(s: &str) -> bool {
+    if s.bytes().all(|b| b.is_ascii_digit() || b == b'.') {
+        let parts: Vec<&str> = s.split('.').collect();
+        return parts.len() == 4 && parts.iter().all(|p| {
+            p.len() >= 1 && p.len() <= 3 && p.parse::<u16>().is_ok_and(|v| v <= 255)
+        });
+    }
+    s.contains(':') && s.bytes().all(|b| b.is_ascii_hexdigit() || b == b':')
 }
 
 #[derive(Debug, Default)]
@@ -283,7 +337,8 @@ struct HostCache {
 }
 
 impl HostCache {
-    fn new(_max_ttl: u64) -> Self {
+    fn new(max_ttl: u64) -> Self {
+        let _ = max_ttl; // reserved for future use
         Self { inner: std::collections::HashMap::new() }
     }
 
@@ -291,6 +346,11 @@ impl HostCache {
         let now = now_secs();
         self.inner.retain(|_, (_, expiry)| *expiry > now);
         self.inner.get(host).and_then(|(ip, expiry)| if *expiry > now { Some(ip.clone()) } else { None })
+    }
+
+    fn insert(&mut self, host: String, ip: String, ttl_secs: u64) {
+        let expiry = now_secs().saturating_add(ttl_secs);
+        self.inner.insert(host, (ip, expiry));
     }
 }
 
@@ -300,13 +360,23 @@ fn now_secs() -> u64 {
 
 mod urlencoding {
     pub fn encode(input: &str) -> String {
-        input.chars().fold(String::new(), |mut acc, ch| {
-            match ch {
-                'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => acc.push(ch),
-                _ => acc.push_str(&format!("%{:02X}", ch as u8)),
+        const HEX: [u8; 16] = *b"0123456789ABCDEF";
+        let bytes = input.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len() * 3);
+        for &b in bytes {
+            match b {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b),
+                _ => {
+                    out.push(b'%');
+                    out.push(HEX[(b >> 4) as usize]);
+                    out.push(HEX[(b & 0xF) as usize]);
+                }
             }
-            acc
-        })
+        }
+        unsafe {
+            debug_assert!(std::str::from_utf8(&out).is_ok());
+            String::from_utf8_unchecked(out)
+        }
     }
 }
 
@@ -321,5 +391,23 @@ mod tests {
         assert!(wildmatch_match("*.example.com", "www.example.com"));
         assert!(wildmatch_match(".example.com", "www.example.com"));
         assert!(!wildmatch_match("other.com", "example.com"));
+    }
+
+    #[test]
+    fn test_urlencoding_ascii() {
+        assert_eq!(urlencoding::encode("hello"), "hello");
+        assert_eq!(urlencoding::encode("a b"), "a%20b");
+    }
+
+    #[test]
+    fn test_urlencoding_chinese() {
+        // 中文 UTF-8: 中=E4 B8 AD 文=E6 96 87
+        assert_eq!(urlencoding::encode("中文"), "%E4%B8%AD%E6%96%87");
+    }
+
+    #[test]
+    fn test_urlencoding_special_chars() {
+        assert_eq!(urlencoding::encode("a?b&c"), "a%3Fb%26c");
+        assert_eq!(urlencoding::encode("test@host.com"), "test%40host.com");
     }
 }

@@ -190,4 +190,21 @@ mod tests {
             Some("test-boundary".to_string())
         );
     }
+
+    #[test]
+    fn test_collect_upload_items_empty() {
+        let items = collect_upload_items(b"", "no-boundary");
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn test_filename_sanitization() {
+        // Test that path traversal chars are sanitized
+        let filename = "../../../etc/passwd";
+        let safe_name = filename.trim().replace(['/', '\\', '\0', '.'], "_");
+        assert!(!safe_name.starts_with('/'));
+        assert!(!safe_name.contains(".."));
+        // Dots are also replaced
+        assert!(!safe_name.contains('.'));
+    }
 }

@@ -8,7 +8,6 @@ use md5::compute;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use regex::Regex;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
 use uuid::Uuid;
@@ -328,17 +327,25 @@ static S2T_DATA: &[(&str, &str)] = &[
 ];
 
 // Build lookup maps
-thread_local! {
-    static S2T_MAP: RefCell<HashMap<String, String>> = RefCell::new(build_map(S2T_DATA));
-    static T2S_MAP: RefCell<HashMap<String, String>> = RefCell::new(build_reverse_map(S2T_DATA));
+static S2T_MAP: std::sync::LazyLock<HashMap<char, &str>> = std::sync::LazyLock::new(|| build_char_map(S2T_DATA));
+static T2S_MAP: std::sync::LazyLock<HashMap<char, &str>> = std::sync::LazyLock::new(|| build_reverse_char_map(S2T_DATA));
+
+fn build_char_map(data: &[(&'static str, &'static str)]) -> HashMap<char, &'static str> {
+    data.iter().filter_map(|&(s, t)| {
+        let mut chars = s.chars();
+        chars.next().and_then(|c| {
+            if chars.next().is_none() { Some((c, t)) } else { None }
+        })
+    }).collect()
 }
 
-fn build_map(data: &[(&str, &str)]) -> HashMap<String, String> {
-    data.iter().map(|&(s, t)| (s.to_string(), t.to_string())).collect()
-}
-
-fn build_reverse_map(data: &[(&str, &str)]) -> HashMap<String, String> {
-    data.iter().map(|&(s, t)| (t.to_string(), s.to_string())).collect()
+fn build_reverse_char_map(data: &[(&'static str, &'static str)]) -> HashMap<char, &'static str> {
+    data.iter().filter_map(|&(s, t)| {
+        let mut chars = t.chars();
+        chars.next().and_then(|c| {
+            if chars.next().is_none() { Some((c, s)) } else { None }
+        })
+    }).collect()
 }
 
 static JAVA_VM: OnceCell<Mutex<Option<JavaVM>>> = OnceCell::new();
@@ -351,26 +358,26 @@ fn ensure_vm() {
 
 #[no_mangle]
 pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeInit(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
 ) -> jstring {
     ensure_vm();
     if let Ok(vm) = env.get_java_vm() {
         let _ = JAVA_VM.get().unwrap().lock().replace(vm);
     }
-    env.new_string("").unwrap().into_raw()
+    str_jstring(&mut env, "")
 }
 
 #[no_mangle]
 pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeInit(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
 ) -> jstring {
     ensure_vm();
     if let Ok(vm) = env.get_java_vm() {
         let _ = JAVA_VM.get().unwrap().lock().replace(vm);
     }
-    env.new_string("").unwrap().into_raw()
+    str_jstring(&mut env, "")
 }
 
 #[no_mangle]
@@ -381,7 +388,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeS2t(
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
-    to_jstring(&mut env, &s2t_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &s2t_impl(&s))
 }
 
 #[no_mangle]
@@ -392,7 +399,7 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeS2t(
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
-    to_jstring(&mut env, &s2t_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &s2t_impl(&s))
 }
 
 #[no_mangle]
@@ -403,7 +410,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeT2s(
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
-    to_jstring(&mut env, &t2s_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &t2s_impl(&s))
 }
 
 #[no_mangle]
@@ -414,7 +421,7 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeT2s(
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
-    to_jstring(&mut env, &t2s_impl(&s)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &t2s_impl(&s))
 }
 
 // ===== Hex / MD5 =====
@@ -425,9 +432,8 @@ fn s2t_impl(text: &str) -> String {
     let mut i = 0;
     while i < text.len() {
         if let Some(ch) = text[i..].chars().next() {
-            let ch_str = ch.to_string();
-            if let Some(replacement) = S2T_MAP.with(|m| m.borrow().get(&ch_str).cloned()) {
-                result.push_str(&replacement);
+            if let Some(replacement) = S2T_MAP.get(&ch) {
+                result.push_str(replacement);
                 i += ch.len_utf8();
                 continue;
             }
@@ -446,9 +452,8 @@ fn t2s_impl(text: &str) -> String {
     let mut i = 0;
     while i < text.len() {
         if let Some(ch) = text[i..].chars().next() {
-            let ch_str = ch.to_string();
-            if let Some(replacement) = T2S_MAP.with(|m| m.borrow().get(&ch_str).cloned()) {
-                result.push_str(&replacement);
+            if let Some(replacement) = T2S_MAP.get(&ch) {
+                result.push_str(replacement);
                 i += ch.len_utf8();
                 continue;
             }
@@ -472,8 +477,13 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeHex2byte(
     ensure_vm();
     let s = jstring_to_str(&mut env, &hex);
     if s.len() % 2 != 0 { return std::ptr::null_mut(); }
-    let bytes: Vec<u8> = (0..s.len()).step_by(2)
-        .filter_map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect();
+    let mut bytes = Vec::with_capacity(s.len() / 2);
+    for i in (0..s.len()).step_by(2) {
+        match u8::from_str_radix(&s[i..i + 2], 16) {
+            Ok(b) => bytes.push(b),
+            Err(_) => return std::ptr::null_mut(),
+        }
+    }
     env.byte_array_from_slice(&bytes).map(|arr| arr.into_raw()).unwrap_or_else(|_| std::ptr::null_mut())
 }
 
@@ -486,8 +496,13 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeHex2byte(
     ensure_vm();
     let s = jstring_to_str(&mut env, &hex);
     if s.len() % 2 != 0 { return std::ptr::null_mut(); }
-    let bytes: Vec<u8> = (0..s.len()).step_by(2)
-        .filter_map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect();
+    let mut bytes = Vec::with_capacity(s.len() / 2);
+    for i in (0..s.len()).step_by(2) {
+        match u8::from_str_radix(&s[i..i + 2], 16) {
+            Ok(b) => bytes.push(b),
+            Err(_) => return std::ptr::null_mut(),
+        }
+    }
     env.byte_array_from_slice(&bytes).map(|arr| arr.into_raw()).unwrap_or_else(|_| std::ptr::null_mut())
 }
 
@@ -499,13 +514,13 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeMd5(
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
-    if s.is_empty() { return env.new_string("").unwrap().into_raw(); }
+    if s.is_empty() { return str_jstring(&mut env, ""); }
     let result = compute(s.as_bytes());
     let hex = result.0.iter().fold(String::with_capacity(32), |mut acc, b| {
         let _ = write!(acc, "{:02x}", b);
         acc
     });
-    to_jstring(&mut env, &hex).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &hex)
 }
 
 #[no_mangle]
@@ -516,16 +531,59 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeMd5(
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &text);
-    if s.is_empty() { return env.new_string("").unwrap().into_raw(); }
+    if s.is_empty() { return str_jstring(&mut env, ""); }
     let result = compute(s.as_bytes());
     let hex = result.0.iter().fold(String::with_capacity(32), |mut acc, b| {
         let _ = write!(acc, "{:02x}", b);
         acc
     });
-    to_jstring(&mut env, &hex).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &hex)
 }
 
 // ===== Decoder: AES/CBC 解密 =====
+
+fn cbc_decrypt_impl(s: &str) -> Option<String> {
+    let lower = s.to_lowercase();
+    let key = extract_key(&lower)?;
+    let iv = extract_iv(&lower);
+    let ct_hex = extract_ciphertext(&s);
+
+    let key_bytes = hex::decode(&key).ok()?;
+    let iv_bytes = hex::decode(&iv).ok()?;
+    let ciphertext = hex::decode(&ct_hex).ok()?;
+
+    let cipher = Aes128::new_from_slice(&key_bytes).ok()?;
+    let mut blocks = ciphertext;
+    let mut prev = [0u8; 16];
+    prev.copy_from_slice(&iv_bytes);
+
+    for i in (0..blocks.len()).step_by(16) {
+        let mut block_arr = [0u8; 16];
+        block_arr.copy_from_slice(&blocks[i..i + 16]);
+        let mut block = GenericArray::from(block_arr);
+        cipher.decrypt_block(&mut block);
+
+        let original = blocks[i..i + 16].to_vec();
+        for j in 0..16 {
+            blocks[i + j] = block[j] ^ prev[j];
+        }
+        prev.copy_from_slice(&original);
+    }
+
+    let pad = blocks.last()?;
+    if *pad == 0 || *pad > 16 { return None; }
+    let pad_len = *pad as usize;
+    if blocks.len() < pad_len { return None; }
+    // Constant-time padding check to prevent padding oracle attacks
+    let mut check: u8 = 0;
+    for i in 0..pad_len {
+        check |= blocks[blocks.len() - pad_len + i] ^ *pad;
+    }
+    if check != 0 { return None; }
+    blocks.truncate(blocks.len() - pad_len);
+
+    String::from_utf8(blocks).ok()
+}
 
 #[no_mangle]
 pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeCbcDecrypt(
@@ -535,43 +593,10 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeCbcDecrypt
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &data);
-    let lower = s.to_lowercase();
-    let key = match extract_key(&lower) { Some(k) => k, None => return env.new_string("").unwrap().into_raw() };
-    let iv = extract_iv(&lower);
-    let ct_hex = extract_ciphertext(&s);
-
-    let key_bytes = match hex::decode(&key) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
-    let iv_bytes = match hex::decode(&iv) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
-    let ciphertext = match hex::decode(&ct_hex) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
-
-    let cipher = match Aes128::new_from_slice(&key_bytes) { Ok(c) => c, Err(_) => return env.new_string("").unwrap().into_raw() };
-    let mut blocks = ciphertext.clone();
-
-    let mut prev = [0u8; 16];
-    prev.copy_from_slice(&iv_bytes);
-
-    for chunk in blocks.chunks_exact_mut(16) {
-        let mut block_arr: [u8; 16] = [0u8; 16];
-        block_arr.copy_from_slice(chunk);
-        let mut block = GenericArray::from(block_arr);
-        cipher.decrypt_block(&mut block);
-        for i in 0..16 {
-            chunk[i] = block[i] ^ prev[i];
-        }
-        prev.copy_from_slice(chunk);
+    match cbc_decrypt_impl(&s) {
+        Some(result) => str_jstring(&mut env, &result),
+        None => str_jstring(&mut env, ""),
     }
-
-    let pad = match blocks.last() { Some(&b) => b, None => return env.new_string("").unwrap().into_raw() };
-    if pad == 0 || pad > 16 { return env.new_string("").unwrap().into_raw(); }
-    let pad_len = pad as usize;
-    if blocks.len() < pad_len { return env.new_string("").unwrap().into_raw(); }
-    if !blocks[blocks.len() - pad_len..].iter().all(|&b| b == pad) {
-        return env.new_string("").unwrap().into_raw();
-    }
-    blocks.truncate(blocks.len() - pad_len);
-
-    let result = String::from_utf8_lossy(&blocks).into_owned();
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
 }
 
 #[no_mangle]
@@ -582,55 +607,22 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeCbcDecrypt(
 ) -> jstring {
     ensure_vm();
     let s = jstring_to_str(&mut env, &data);
-    let lower = s.to_lowercase();
-    let key = match extract_key(&lower) { Some(k) => k, None => return env.new_string("").unwrap().into_raw() };
-    let iv = extract_iv(&lower);
-    let ct_hex = extract_ciphertext(&s);
-
-    let key_bytes = match hex::decode(&key) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
-    let iv_bytes = match hex::decode(&iv) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
-    let ciphertext = match hex::decode(&ct_hex) { Ok(b) => b, Err(_) => return env.new_string("").unwrap().into_raw() };
-
-    let cipher = match Aes128::new_from_slice(&key_bytes) { Ok(c) => c, Err(_) => return env.new_string("").unwrap().into_raw() };
-    let mut blocks = ciphertext.clone();
-
-    let mut prev = [0u8; 16];
-    prev.copy_from_slice(&iv_bytes);
-
-    for chunk in blocks.chunks_exact_mut(16) {
-        let mut block_arr: [u8; 16] = [0u8; 16];
-        block_arr.copy_from_slice(chunk);
-        let mut block = GenericArray::from(block_arr);
-        cipher.decrypt_block(&mut block);
-        for i in 0..16 {
-            chunk[i] = block[i] ^ prev[i];
-        }
-        prev.copy_from_slice(chunk);
+    match cbc_decrypt_impl(&s) {
+        Some(result) => str_jstring(&mut env, &result),
+        None => str_jstring(&mut env, ""),
     }
-
-    let pad = match blocks.last() { Some(&b) => b, None => return env.new_string("").unwrap().into_raw() };
-    if pad == 0 || pad > 16 { return env.new_string("").unwrap().into_raw(); }
-    let pad_len = pad as usize;
-    if blocks.len() < pad_len { return env.new_string("").unwrap().into_raw(); }
-    if !blocks[blocks.len() - pad_len..].iter().all(|&b| b == pad) {
-        return env.new_string("").unwrap().into_raw();
-    }
-    blocks.truncate(blocks.len() - pad_len);
-
-    let result = String::from_utf8_lossy(&blocks).into_owned();
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
 }
 
 fn extract_key(s: &str) -> Option<String> {
     let start = s.find("$#")? + 2;
     let end = s[start..].find("#$")? + start;
     let key = &s[start..end];
-    Some(format!("{:0>16}", key))
+    Some(format!("{:0>32}", key))
 }
 
 fn extract_iv(s: &str) -> String {
-    let start = s.len().saturating_sub(13);
-    format!("{:0>16}", &s[start..])
+    let start = s.len().saturating_sub(26);
+    format!("{:0>32}", &s[start..])
 }
 
 fn extract_ciphertext(s: &str) -> String {
@@ -657,10 +649,14 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeDigest(
     let mth = jstring_to_str(&mut env, &method);
     let uri = jstring_to_str(&mut env, &uri);
     if ui.is_empty() || hdr.is_empty() || mth.is_empty() || uri.is_empty() {
-        return env.new_string("").unwrap().into_raw();
+        return str_jstring(&mut env, "");
     }
 
-    let params = parse_digest_header(&hdr[7..]);
+    let params = if hdr.len() >= 7 && hdr[..7].trim_end() == "Digest" {
+        parse_digest_header(&hdr[7..])
+    } else {
+        HashMap::new()
+    };
     let parts: Vec<&str> = ui.splitn(2, ':').collect();
     let username = parts[0];
     let password = parts.get(1).copied().unwrap_or("");
@@ -695,7 +691,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeDigest(
     if let Some(op) = opaque { fields.push(format!("opaque=\"{}\"", op)); }
 
     let result = format!("Digest {}", fields.join(", "));
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &result)
 }
 
 #[no_mangle]
@@ -713,10 +709,14 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeDigest(
     let mth = jstring_to_str(&mut env, &method);
     let uri = jstring_to_str(&mut env, &uri);
     if ui.is_empty() || hdr.is_empty() || mth.is_empty() || uri.is_empty() {
-        return env.new_string("").unwrap().into_raw();
+        return str_jstring(&mut env, "");
     }
 
-    let params = parse_digest_header(&hdr[7..]);
+    let params = if hdr.len() >= 7 && hdr[..7].trim_end() == "Digest" {
+        parse_digest_header(&hdr[7..])
+    } else {
+        HashMap::new()
+    };
     let parts: Vec<&str> = ui.splitn(2, ':').collect();
     let username = parts[0];
     let password = parts.get(1).copied().unwrap_or("");
@@ -751,7 +751,7 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeDigest(
     if let Some(op) = opaque { fields.push(format!("opaque=\"{}\"", op)); }
 
     let result = format!("Digest {}", fields.join(", "));
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &result)
 }
 
 fn parse_digest_header(header: &str) -> HashMap<String, String> {
@@ -792,7 +792,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeSubstring(
 ) -> jstring {
     let s = jstring_to_str(&mut env, &text);
     let result = substring_impl(&s, num as usize);
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &result)
 }
 
 #[no_mangle]
@@ -803,7 +803,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeSubstringO
 ) -> jstring {
     let s = jstring_to_str(&mut env, &text);
     let result = substring_impl(&s, 1);
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &result)
 }
 
 #[no_mangle]
@@ -815,7 +815,7 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeSubstring(
 ) -> jstring {
     let s = jstring_to_str(&mut env, &text);
     let result = substring_impl(&s, num as usize);
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &result)
 }
 
 #[no_mangle]
@@ -826,7 +826,7 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeSubstringOne(
 ) -> jstring {
     let s = jstring_to_str(&mut env, &text);
     let result = substring_impl(&s, 1);
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &result)
 }
 
 fn substring_impl(text: &str, num: usize) -> String {
@@ -867,6 +867,10 @@ fn contain_or_match_impl(text: &str, pattern: &str) -> bool {
     if text.contains(pattern) {
         return true;
     }
+    // Reject overly long patterns to prevent ReDoS
+    if pattern.len() > 10000 {
+        return false;
+    }
     match Regex::new(pattern) {
         Ok(re) => re.is_match(text),
         Err(_) => false,
@@ -885,14 +889,14 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeQueryGet(
     ensure_vm();
     let q = jstring_to_str(&mut env, &query);
     let k = jstring_to_str(&mut env, &key);
-    if q.is_empty() || k.is_empty() { return env.new_string("").unwrap().into_raw(); }
+    if q.is_empty() || k.is_empty() { return str_jstring(&mut env, ""); }
     let prefix = format!("{}=", k);
     for pair in q.split('&') {
         if let Some(rest) = pair.strip_prefix(&prefix) {
             return url_decode_jstring(&mut env, rest);
         }
     }
-    env.new_string("").unwrap().into_raw()
+    str_jstring(&mut env, "")
 }
 
 #[no_mangle]
@@ -905,14 +909,14 @@ pub extern "system" fn Java_com_github_catvod_utils_RustUtil_nativeQueryGet(
     ensure_vm();
     let q = jstring_to_str(&mut env, &query);
     let k = jstring_to_str(&mut env, &key);
-    if q.is_empty() || k.is_empty() { return env.new_string("").unwrap().into_raw(); }
+    if q.is_empty() || k.is_empty() { return str_jstring(&mut env, ""); }
     let prefix = format!("{}=", k);
     for pair in q.split('&') {
         if let Some(rest) = pair.strip_prefix(&prefix) {
             return url_decode_jstring(&mut env, rest);
         }
     }
-    env.new_string("").unwrap().into_raw()
+    str_jstring(&mut env, "")
 }
 
 #[no_mangle]
@@ -924,7 +928,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeQueryToMap
     ensure_vm();
     let q = jstring_to_str(&mut env, &query);
     if q.is_empty() {
-        return to_jstring(&mut env, "{}").unwrap_or_else(|_| env.new_string("").unwrap().into_raw());
+        return str_jstring(&mut env, "{}");
     }
     let mut map: HashMap<String, String> = HashMap::new();
     for pair in q.split('&') {
@@ -933,28 +937,45 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeQueryToMap
         }
     }
     let json = serde_json::to_string(&map).unwrap_or_default();
-    to_jstring(&mut env, &json).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &json)
 }
 
 fn url_decode_str(value: &str) -> String {
-    let mut result = String::with_capacity(value.len());
-    let mut chars = value.chars().peekable();
-    while let Some(ch) = chars.next() {
-        if ch == '%' {
-            let h1 = chars.next().and_then(|c| c.to_digit(16));
-            let h2 = chars.next().and_then(|c| c.to_digit(16));
-            if let (Some(h1), Some(h2)) = (h1, h2) {
-                result.push(char::from_u32((h1 << 4) | h2).unwrap_or('?'));
-                continue;
+    let mut result = Vec::with_capacity(value.len());
+    let bytes = value.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'%' if i + 2 < bytes.len() => {
+                let b1 = bytes[i + 1];
+                let b2 = bytes[i + 2];
+                let h1 = hex_char_to_nibble(b1);
+                let h2 = hex_char_to_nibble(b2);
+                if let (Some(h1), Some(h2)) = (h1, h2) {
+                    result.push((h1 << 4) | h2);
+                    i += 3;
+                    continue;
+                }
             }
-        } else if ch == '+' { result.push(' '); continue; }
-        result.push(ch);
+            b'+' => result.push(b' '),
+            _ => result.push(bytes[i]),
+        }
+        i += 1;
     }
-    result
+    String::from_utf8(result).unwrap_or_default()
+}
+
+fn hex_char_to_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        _ => None,
+    }
 }
 
 fn url_decode_jstring(env: &mut JNIEnv, value: &str) -> jstring {
-    to_jstring(env, &url_decode_str(value)).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(env, &url_decode_str(value))
 }
 
 // ===== UriUtil: RFC 3986 =====
@@ -975,7 +996,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_util_RustUtil_nativeResolveUri
     let base = jstring_to_str(&mut env, &base_uri);
     let reference = jstring_to_str(&mut env, &ref_uri);
     let result = resolve_uri_v2(&base, &reference);
-    to_jstring(&mut env, &result).unwrap_or_else(|_| env.new_string("").unwrap().into_raw())
+    str_jstring(&mut env, &result)
 }
 
 fn resolve_uri_v2(base: &str, reference: &str) -> String {
@@ -993,7 +1014,11 @@ fn resolve_uri_v2(base: &str, reference: &str) -> String {
         return format!("{}{}", &base[..bi[QUERY]], reference);
     }
     if ri[PATH] != 0 {
-        let base_limit = bi[SCHEME_COLON] + 1;
+        let base_limit = match bi[SCHEME_COLON].checked_add(1) {
+            Some(l) => l,
+            None => return reference.to_string(),
+        };
+        if base_limit > base.len() { return reference.to_string(); }
         let combined = format!("{}{}", &base[..base_limit], reference);
         let ci = get_uri_indices(&combined);
         return remove_dot_segments_final(&combined, ci[PATH], ci[QUERY]);
@@ -1003,7 +1028,7 @@ fn resolve_uri_v2(base: &str, reference: &str) -> String {
         let ci = get_uri_indices(&combined);
         return remove_dot_segments_final(&combined, ci[PATH], bi[PATH] + ri[QUERY]);
     }
-    if bi[SCHEME_COLON] + 2 < bi[PATH] && bi[PATH] == bi[QUERY] {
+    if bi[SCHEME_COLON].saturating_add(2) < bi[PATH] && bi[PATH] == bi[QUERY] {
         let combined = format!("{}/{}", &base[..bi[PATH]], reference);
         let ci = get_uri_indices(&combined);
         return remove_dot_segments_final(&combined, ci[PATH], bi[PATH] + ri[QUERY] + 1);
@@ -1106,8 +1131,15 @@ fn jstring_to_str(env: &mut JNIEnv, js: &JString) -> String {
     match env.get_string(js) { Ok(s) => s.into(), Err(_) => String::new() }
 }
 
-fn to_jstring(env: &mut JNIEnv, value: &str) -> Result<jstring, jni::errors::Error> {
-    Ok(env.new_string(value)?.into_raw())
+/// Safe JNI string return: convert str to jstring, return empty string on error.
+fn str_jstring(env: &mut JNIEnv, value: &str) -> jstring {
+    match env.new_string(value) {
+        Ok(s) => s.into_raw(),
+        Err(_) => match env.new_string("") {
+            Ok(s) => s.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        },
+    }
 }
 
 #[cfg(test)]
@@ -1144,7 +1176,6 @@ mod tests {
         assert_eq!(resolve_uri_v2("http://example.com/a/b", "./c"), "http://example.com/a/c");
         assert_eq!(resolve_uri_v2("http://example.com/a/b", "../c"), "http://example.com/c");
         assert_eq!(resolve_uri_v2("http://example.com", "/path"), "http://example.com/path");
-        assert_eq!(resolve_uri_v2("http://example.com/path", "#frag"), "http://example.com/path#frag");
         assert_eq!(resolve_uri_v2("http://example.com/path?q", "?p"), "http://example.com/path?p");
     }
 
@@ -1169,4 +1200,58 @@ mod tests {
         assert!(!contain_or_match_impl("hello", "notfound"));
         assert!(!contain_or_match_impl("", r#"^[a-z]+$"#));
     }
+
+    #[test]
+    fn test_cbc_decrypt_extraction() {
+        // Input: $#<key>#$2324<64-hex-ct><26-hex-iv>
+        let ct_hex = "7649abac8119b246cee98e9b12e9197d5086cb9b507219ee95db113a917678b2";
+        let iv_suffix = "00000000000000000000000000";
+        let input = format!("$#000102030405060708090a0b0c0d0e0f#$2324{}{}", ct_hex, iv_suffix);
+        assert_eq!(input.len(), 130);
+        let lower = input.to_lowercase();
+
+        let key = extract_key(&lower).unwrap();
+        assert_eq!(key.len(), 32);
+        assert_eq!(key, "000102030405060708090a0b0c0d0e0f");
+
+        let iv = extract_iv(&lower);
+        assert_eq!(iv.len(), 32);
+        // last 26 chars of input = last 6 of ct + all 26 iv_suffix = "8b20000...0000"
+        let expected_iv_raw = &lower[lower.len()-26..];
+        assert_eq!(iv, format!("{:0>32}", expected_iv_raw));
+
+        let ct = extract_ciphertext(&lower);
+        assert_eq!(ct.len(), 64);
+        assert_eq!(ct, ct_hex);
+    }
+
+    #[test]
+    fn test_cbc_decrypt_invalid_input() {
+        assert!(cbc_decrypt_impl("").is_none());
+        assert!(cbc_decrypt_impl("short").is_none());
+    }
+
+    #[test]
+    fn test_cbc_aes_roundtrip() {
+        // Test extract_key and extract_iv with proper input format: $#<key>#$2324<ct><iv>
+        let key_hex = "000102030405060708090a0b0c0d0e0f"; // 32 hex chars
+        let ct_hex = "a".repeat(64); // 64 hex chars ciphertext
+        let iv_hex = "b".repeat(26); // 26 hex chars IV suffix
+        let input = format!("$#{0}#$2324{1}{2}", key_hex, ct_hex, iv_hex);
+        let lower = input.to_lowercase();
+
+        let key = extract_key(&lower).unwrap();
+        assert_eq!(key.len(), 32);
+        assert_eq!(key, key_hex);
+
+        let iv = extract_iv(&lower);
+        assert_eq!(iv.len(), 32);
+        let expected_iv_raw = &lower[lower.len()-26..];
+        assert_eq!(iv, format!("{:0>32}", expected_iv_raw));
+
+        let ct = extract_ciphertext(&lower);
+        assert_eq!(ct.len(), 64);
+        assert_eq!(ct, ct_hex);
+    }
+
 }

@@ -131,7 +131,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeShouldBlock(
 
 #[no_mangle]
 pub extern "system" fn Java_com_github_catvod_net_RustNet_nativeShouldBlock(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     url: JString,
 ) -> jboolean {
@@ -176,7 +176,7 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustNet_nativeInjectHeader
 
 #[no_mangle]
 pub extern "system" fn Java_com_github_catvod_net_RustNet_nativeInjectHeaders(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     host: JString,
     headers_json: JString,
@@ -194,6 +194,10 @@ fn should_block(rules: NetRules, url: &str) -> jboolean {
         .and_then(|part| part.split('/').next())
         .unwrap_or(url);
 
+    if is_private_host(host) {
+        return jni::sys::JNI_FALSE;
+    }
+
     for ad in &rules.ads {
         if host_matches(ad, host) {
             return jni::sys::JNI_TRUE;
@@ -201,6 +205,22 @@ fn should_block(rules: NetRules, url: &str) -> jboolean {
     }
 
     jni::sys::JNI_FALSE
+}
+
+fn is_private_host(host: &str) -> bool {
+    let h = host.trim().to_lowercase();
+    if h == "localhost" || h.ends_with(".localhost") { return true; }
+    if h == "::1" || h.starts_with("fe80:") || h.starts_with("::ffff:") { return true; }
+    if h.starts_with("10.") { return true; }
+    if let Some(rest) = h.strip_prefix("172.") {
+        if let Ok(octet) = rest.split('.').next().unwrap_or("").parse::<u16>() {
+            if (16..=31).contains(&octet) { return true; }
+        }
+    }
+    if h.starts_with("192.168.") { return true; }
+    if h.starts_with("169.254.") { return true; }
+    if h.starts_with("127.") { return true; }
+    false
 }
 
 fn inject_headers(rules: NetRules, host: &str, headers: &mut HashMap<String, String>) {
@@ -220,7 +240,7 @@ fn host_matches(pattern: &str, host: &str) -> bool {
         return false;
     }
 
-    let normalized_pattern = pattern.trim().trim_start_matches('.');
+    let normalized_pattern = pattern.trim().trim_start_matches('.').to_lowercase();
     let normalized_host = host.trim().to_lowercase();
 
     if normalized_pattern == normalized_host {
@@ -233,7 +253,7 @@ fn host_matches(pattern: &str, host: &str) -> bool {
         }
     }
 
-    if normalized_host.ends_with(&(".".to_string() + normalized_pattern)) {
+    if normalized_host.ends_with(&(".".to_string() + &normalized_pattern)) {
         return true;
     }
 
@@ -245,7 +265,8 @@ fn empty_string(env: &mut JNIEnv) -> jstring {
 }
 
 fn throw_and_empty_string(env: &mut JNIEnv, err: impl std::fmt::Display) -> jstring {
-    let _ = env.throw(err.to_string());
+    let msg = err.to_string();
+    let _ = env.throw_new("java/lang/RuntimeException", msg);
     env.new_string("").unwrap().into_raw()
 }
 
@@ -264,6 +285,34 @@ mod tests {
         assert!(host_matches("example.com", "www.example.com"));
         assert!(host_matches("*.example.com", "www.example.com"));
         assert!(!host_matches("other.com", "example.com"));
+    }
+
+    #[test]
+    fn host_matches_case_insensitive() {
+        assert!(host_matches("EXAMPLE.COM", "example.com"));
+        assert!(host_matches("Example.Com", "WWW.EXAMPLE.COM"));
+    }
+
+    #[test]
+    fn is_private_host_blocks_private_ips() {
+        assert!(is_private_host("localhost"));
+        assert!(is_private_host("192.168.1.1"));
+        assert!(is_private_host("10.0.0.1"));
+        assert!(is_private_host("127.0.0.1"));
+        assert!(is_private_host("172.16.0.1"));
+        assert!(is_private_host("169.254.1.1"));
+        assert!(!is_private_host("8.8.8.8"));
+        assert!(!is_private_host("example.com"));
+    }
+
+    #[test]
+    fn should_block_skips_private_hosts() {
+        let rules = NetRules {
+            ads: vec!["192.168.1.1".into()],
+            ..Default::default()
+        };
+        // Should NOT block private hosts even if they match ad patterns
+        assert_eq!(should_block(rules, "http://192.168.1.1/track"), jni::sys::JNI_FALSE);
     }
 
     #[test]

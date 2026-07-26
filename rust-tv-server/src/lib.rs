@@ -27,6 +27,12 @@ fn vm_ref() -> Option<Arc<JavaVM>> {
     JAVA_VM.get()?.lock().clone()
 }
 
+pub struct RustServerParts {
+    pub port: u16,
+    shutdown: Arc<AtomicBool>,
+    _drop_handle: Arc<JoinHandle<()>>,
+}
+
 #[derive(Debug, Error)]
 pub enum ServerError {
     #[error("server already started")]
@@ -75,17 +81,27 @@ pub struct ServerConfig {
     pub port_end: u16,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RustServerHandle {
     pub port: u16,
-    handle: Arc<JoinHandle<()>>,
     shutdown: Arc<AtomicBool>,
+    _runtime: Arc<tokio::runtime::Runtime>,
+}
+
+impl Clone for RustServerHandle {
+    fn clone(&self) -> Self {
+        Self {
+            port: self.port,
+            shutdown: self.shutdown.clone(),
+            _runtime: self._runtime.clone(),
+        }
+    }
 }
 
 impl RustServerHandle {
-    pub async fn stop(&self) {
+    pub fn stop(&self) {
         self.shutdown.store(true, Ordering::SeqCst);
-        self.handle.abort();
+        // Don't abort — let graceful shutdown finish naturally.
     }
 }
 
@@ -117,10 +133,21 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStart<
         port_end: port_end as u16,
     };
 
-    let result = runtime.block_on(async { start_server_once(config).await });
+    // Keep runtime alive by storing it in the handle.
+    // If we drop rt here, tokio threads die and the server crashes.
+    let rt_clone = Arc::new(runtime);
+    let result = rt_clone.as_ref().block_on(async { start_server_once(config).await });
 
     match result {
-        Ok(handle) => handle.port as jni::sys::jint,
+        Ok(parts) => {
+            let server_handle = RustServerHandle {
+                port: parts.port,
+                shutdown: parts.shutdown,
+                _runtime: rt_clone,
+            };
+            *SERVER_CELL.lock() = Some(server_handle.clone());
+            server_handle.port as jni::sys::jint
+        },
         Err(err) => {
             let _ = env.throw(err.to_string());
             -1
@@ -135,16 +162,15 @@ pub extern "system" fn Java_com_fongmi_android_tv_server_RustServer_nativeStop(
 ) {
     let mut guard = SERVER_CELL.lock();
     if let Some(handle) = guard.as_ref() {
-        let handle = handle.clone();
-        let _ = tokio::runtime::Handle::try_current().map(|h| h.spawn(async move { handle.stop().await }));
+        handle.stop();
     }
 
     if guard.take().is_some() {
-            let _ = env.exception_occurred();
-        }
+        let _ = env.exception_occurred();
+    }
 }
 
-async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, ServerError> {
+async fn start_server_once(config: ServerConfig) -> Result<RustServerParts, ServerError> {
     if (*SERVER_CELL.lock()).is_some() {
         return Err(ServerError::AlreadyStarted);
     }
@@ -196,15 +222,13 @@ async fn start_server_once(config: ServerConfig) -> Result<RustServerHandle, Ser
         }
     });
 
-    let server_handle = RustServerHandle {
+    let server_parts = RustServerParts {
         port,
-        handle: Arc::new(handle),
         shutdown,
+        _drop_handle: Arc::new(handle),
     };
 
-    *SERVER_CELL.lock() = Some(server_handle.clone());
-
-    Ok(server_handle)
+    Ok(server_parts)
 }
 
 async fn find_available_port(start: u16, end: u16) -> Option<TcpListener> {
@@ -517,11 +541,13 @@ fn parse_multipart_fields(body: &[u8], boundary: &str) -> Vec<(String, std::path
         if content.starts_with(&end_delimiter) {
             continue;
         }
-        let temp_path = std::env::temp_dir().join(format!("upload_{}_{}", name, filename));
+        let safe_name = name.trim().replace(['/', '\\', '\0', '.', ';'], "_");
+        let safe_filename = filename.trim().replace(['/', '\\', '\0', '.'], "_");
+        let temp_path = std::env::temp_dir().join(format!("upload_{}_{}", safe_name, safe_filename));
         if std::fs::write(&temp_path, content).is_err() {
             continue;
         }
-        let is_zip = filename.to_lowercase().ends_with(".zip");
+        let is_zip = filename.trim().to_lowercase().ends_with(".zip");
         items.push((filename, temp_path, is_zip));
     }
     items

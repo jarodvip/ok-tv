@@ -12,7 +12,6 @@ default = []
 [dependencies]
 aes = "0.8"
 cipher = "0.4"
-aes-gcm = { version = "0.10", default-features = false }
 base64 = "0.21"
 hex = "0.4"
 jni = { version = "0.21.1", default-features = false, features = ["invocation"] }
