@@ -123,7 +123,10 @@ pub extern "system" fn Java_com_fongmi_android_tv_net_RustDns_nativeResolveHost(
         Err(err) => return throw_and_empty_string(&mut env, err),
     };
 
-    to_json_string(&mut env, &result).unwrap_or_else(|err| throw_and_empty_string(&mut env, err))
+    let Ok(s) = env.new_string(result.ip) else {
+        return throw_and_empty_string(&mut env, DnsError::InvalidConfig("new_string failed".into()));
+    };
+    s.into_raw()
 }
 
 #[no_mangle]
