@@ -21,7 +21,7 @@ if ! command -v cargo-ndk >/dev/null 2>&1; then
   cargo install cargo-ndk
 fi
 
-mkdir -p "$JNI_ARM64" "$JNI_ARMEABI"
+mkdir -p "$JNI_DIR"
 
 cd "$RUST_DIR"
 
@@ -30,6 +30,6 @@ cargo ndk --manifest-path Cargo.toml \
   -t armeabi-v7a \
   -P 24 \
   -o "$JNI_DIR" \
-  build
+  build --release
 
 echo "tv server .so updated"

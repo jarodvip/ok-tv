@@ -29,6 +29,6 @@ cargo ndk --manifest-path Cargo.toml \
   -t armeabi-v7a \
   -P 24 \
   -o "$JNI_DIR" \
-  build
+  build --release
 
 echo "tv dns .so updated"

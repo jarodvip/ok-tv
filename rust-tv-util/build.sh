@@ -31,6 +31,6 @@ cargo ndk --manifest-path Cargo.toml \
   -t i686-linux-android \
   -P 24 \
   -o "$JNI_DIR" \
-  build
+  build --release
 
 echo "tv util .so updated"

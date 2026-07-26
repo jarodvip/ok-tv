@@ -33,9 +33,9 @@ cargo ndk --manifest-path Cargo.toml \
   --target x86_64-linux-android \
   --target i686-linux-android \
   --platform 24 \
-  build
+  build --release
 
-find target -type f -name 'libtv_net.so' | while read -r src; do
+find target -path '*/release/*' -type f -name 'libtv_net.so' | while read -r src; do
   case "$src" in
     *aarch64*)
       dest="$JNI_ARM64/libtv_net.so"
